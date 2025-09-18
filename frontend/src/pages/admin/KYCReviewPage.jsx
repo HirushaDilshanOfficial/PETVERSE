@@ -1,0 +1,792 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  DocumentTextIcon, 
+  EyeIcon, 
+  CheckIcon, 
+  XMarkIcon,
+  MagnifyingGlassIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ArrowDownTrayIcon
+} from '@heroicons/react/24/outline';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Simple KYC Review Page for beginners
+function KYCReviewPage() {
+  const { currentUser } = useAuth();
+  
+  // State for KYC requests and UI
+  const [kycRequests, setKycRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('pending');
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  
+  // State for notifications
+  const [notifications, setNotifications] = useState([]);
+
+  // Fetch service providers from API
+  const fetchKYCRequests = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = await currentUser.getIdToken();
+      
+      // Build query parameters - removed verified filter to show all providers
+      const params = new URLSearchParams({
+        role: 'serviceProvider',
+        page: '1',
+        limit: '100'
+      });
+      
+      const response = await fetch(`http://localhost:4000/api/auth/users?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch service providers: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setKycRequests(data.users);
+      
+      console.log('✅ Service providers fetched successfully:', data.users.length, 'providers');
+      
+    } catch (err) {
+      console.error('❌ Error fetching service providers:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load service providers on component mount
+  useEffect(() => {
+    if (currentUser) {
+      fetchKYCRequests();
+    }
+  }, [currentUser]);
+
+  // Handle search term change with validation
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    // Allow only letters and numbers
+    if (/^[a-zA-Z0-9]*$/.test(value) || value === '') {
+      setSearchTerm(value);
+    }
+  };
+
+  // Filter service providers based on search and status
+  const filteredRequests = kycRequests.filter(request => {
+    const matchesSearch = 
+      (request.fullName && request.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (request.email && request.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Filter by verification status
+    let matchesStatus = true;
+    if (filterStatus === 'pending') {
+      // Show both unverified and rejected providers in pending list
+      matchesStatus = !request.verification?.isVerified || request.verification?.isRejected;
+    } else if (filterStatus === 'approved') {
+      matchesStatus = request.verification?.isVerified && !request.verification?.isRejected;
+    }
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Approve service provider
+  const approveRequest = async (userId) => {
+    try {
+      const token = await currentUser.getIdToken();
+      
+      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}/verify`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isVerified: true
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to approve service provider');
+      }
+      
+      // Refresh service providers
+      fetchKYCRequests();
+      
+      showNotification('Service provider approved successfully!');
+      
+    } catch (err) {
+      console.error('Error approving service provider:', err);
+      showNotification(`Error: ${err.message}`, 'error');
+    }
+  };
+
+  // Show reject modal with reason input
+  const showRejectModalWithReason = (request) => {
+    console.log('Showing reject modal for:', request);
+    console.log('setRejectionReason function:', typeof setRejectionReason);
+    setSelectedRequest(request);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  // Reject service provider
+  const rejectRequest = async () => {
+    console.log('Rejecting provider with reason:', rejectionReason);
+    console.log('Selected request:', selectedRequest);
+    console.log('setRejectionReason function:', typeof setRejectionReason);
+    
+    if (!rejectionReason.trim()) {
+      showNotification('Please provide a rejection reason', 'error');
+      return;
+    }
+
+    try {
+      const token = await currentUser.getIdToken();
+      
+      const response = await fetch(`http://localhost:4000/api/auth/users/${selectedRequest._id}/verify`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isVerified: false,
+          rejectionReason: rejectionReason
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reject service provider');
+      }
+      
+      // Refresh service providers
+      fetchKYCRequests();
+      
+      // Close modal
+      setShowRejectModal(false);
+      setSelectedRequest(null);
+      setRejectionReason('');
+      
+      showNotification('Service provider rejected successfully!');
+      
+    } catch (err) {
+      console.error('Error rejecting service provider:', err);
+      showNotification(`Error: ${err.message}`, 'error');
+    }
+  };
+
+  // View service provider details
+  const viewRequest = (request) => {
+    setSelectedRequest(request);
+    setShowViewModal(true);
+  };
+
+  // Get verification status text and styling
+  const getVerificationStatus = (verification) => {
+    if (verification?.isVerified) {
+      return { text: 'Verified', className: 'bg-green-100 text-green-800' };
+    } else if (verification?.isRejected) {
+      return { text: 'Rejected', className: 'bg-red-100 text-red-800' };
+    } else {
+      return { text: 'Pending', className: 'bg-yellow-100 text-yellow-800' };
+    }
+  };
+
+  // Function to show notification
+  const showNotification = (message, type = 'success') => {
+    const id = Date.now();
+    const newNotification = { id, message, type };
+    
+    setNotifications(prev => [...prev, newNotification]);
+    
+    // Auto remove notification after 3 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(notification => notification.id !== id));
+    }, 3000);
+  };
+
+  // Export KYC data to PDF
+  const exportToPDF = async () => {
+    try {
+      // Import jsPDF and autoTable dynamically to avoid loading issues
+      const jsPDF = (await import('jspdf')).jsPDF;
+      const autoTable = (await import('jspdf-autotable')).default;
+      
+      // Create new PDF document in landscape mode for better data display
+      const doc = new jsPDF('landscape');
+      
+      // Add PETVERSE header with enhanced business information
+      doc.setFontSize(24);
+      doc.setTextColor(30, 64, 175); // Blue color from PETVERSE theme
+      doc.setFont(undefined, 'bold');
+      doc.text('PETVERSE', 148.5, 15, null, null, 'center');
+      
+      doc.setFontSize(18);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont(undefined, 'normal');
+      doc.text('KYC Review Report', 148.5, 25, null, null, 'center');
+      
+      // Add business information with better styling
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text('New Kandy Road, Malabe • Tel: 0912345673', 148.5, 33, null, null, 'center');
+      doc.text('www.petverse.com • hello@petverse.com', 148.5, 39, null, null, 'center');
+      
+      // Add date and filter information with better formatting
+      const date = new Date().toLocaleDateString();
+      const time = new Date().toLocaleTimeString();
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Generated on: ${date} at ${time}`, 148.5, 47, null, null, 'center');
+      
+      // Add filter information
+      let filterText = 'Filters: ';
+      if (filterStatus === 'pending') {
+        filterText += 'Pending Verification';
+      } else if (filterStatus === 'approved') {
+        filterText += 'Verified Providers';
+      }
+      doc.text(filterText, 148.5, 53, null, null, 'center');
+      
+      // Add summary statistics with better visual presentation
+      const totalRequests = kycRequests.length;
+      const pendingRequests = kycRequests.filter(r => !r.verification?.isVerified && !r.verification?.isRejected).length;
+      const verifiedRequests = kycRequests.filter(r => r.verification?.isVerified && !r.verification?.isRejected).length;
+      const rejectedRequests = kycRequests.filter(r => r.verification?.isRejected).length;
+      
+      // Add a line separator
+      doc.setDrawColor(30, 64, 175);
+      doc.setLineWidth(0.5);
+      doc.line(20, 59, 277, 59);
+      
+      // Add summary boxes
+      doc.setFontSize(12);
+      doc.setTextColor(255, 255, 255);
+      
+      // Background boxes for statistics
+      doc.setFillColor(30, 64, 175);
+      doc.roundedRect(20, 64, 65, 25, 2, 2, 'F');
+      doc.text(`Total: ${totalRequests}`, 52.5, 79, null, null, 'center');
+      
+      doc.setFillColor(255, 193, 7);
+      doc.roundedRect(87, 64, 65, 25, 2, 2, 'F');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Pending: ${pendingRequests}`, 119.5, 79, null, null, 'center');
+      
+      doc.setFillColor(40, 167, 69);
+      doc.roundedRect(154, 64, 65, 25, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(`Verified: ${verifiedRequests}`, 186.5, 79, null, null, 'center');
+      
+      doc.setFillColor(220, 53, 69);
+      doc.roundedRect(221, 64, 65, 25, 2, 2, 'F');
+      doc.text(`Rejected: ${rejectedRequests}`, 253.5, 79, null, null, 'center');
+      
+      // Prepare table data with better formatting
+      const tableData = filteredRequests.map(request => [
+        request.fullName || 'N/A',
+        request.email || 'N/A',
+        request.phoneNumber || 'N/A',
+        new Date(request.createdAt).toLocaleDateString() || 'N/A',
+        request.verification?.isVerified ? 'Verified' : 
+        request.verification?.isRejected ? 'Rejected' : 'Pending'
+      ]);
+      
+      // Add table with enhanced styling
+      autoTable(doc, {
+        head: [['Name', 'Email', 'Phone', 'Submitted Date', 'Status']],
+        body: tableData,
+        startY: 96,
+        styles: {
+          fontSize: 9,
+          cellPadding: 3
+        },
+        headStyles: {
+          fillColor: [30, 64, 175], // Blue color from PETVERSE theme
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          textColor: [0, 0, 0]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 249, 250]
+        },
+        pageBreak: 'auto',
+        margin: { top: 96, bottom: 30 }
+      });
+      
+      // Add footer with page numbers
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${pageCount}`, 148.5, 200, null, null, 'center');
+        doc.text('© 2025 PETVERSE. All rights reserved.', 148.5, 205, null, null, 'center');
+      }
+      
+      // Save the PDF with metadata
+      const fileName = `petverse-kyc-${date.replace(/\//g, '-')}.pdf`;
+      doc.setProperties({
+        title: 'PETVERSE KYC Review Report',
+        subject: 'KYC Review Report',
+        author: 'PETVERSE Admin System',
+        keywords: 'kyc, verification, service providers, pet, petverse'
+      });
+      
+      doc.save(fileName);
+      
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      showNotification('Failed to export PDF. Please try again.', 'error');
+    }
+  };
+
+  return (
+    <div className="p-6">
+      {/* Notifications Container */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {notifications.map((notification) => (
+          <div
+            key={notification.id}
+            className={`flex items-center p-4 rounded-lg shadow-lg transition-all duration-300 ${
+              notification.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : 'bg-red-500 text-white'
+            }`}
+          >
+            {notification.type === 'success' ? (
+              <CheckCircleIcon className="h-5 w-5 mr-2" />
+            ) : (
+              <XCircleIcon className="h-5 w-5 mr-2" />
+            )}
+            <span>{notification.message}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Page Title */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">KYC Review</h1>
+        <p className="text-gray-600 mt-2">Review and approve service provider documents</p>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading service providers...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <p className="text-red-800">Error: {error}</p>
+          <button 
+            onClick={fetchKYCRequests}
+            className="mt-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Search and Filter Section */}
+      {!loading && !error && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search Box */}
+            <div className="flex-1">
+              <div className="relative">
+                <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email (letters and numbers only)..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={exportToPDF}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              >
+                <ArrowDownTrayIcon className="h-5 w-5" />
+                Export PDF
+              </button>
+              
+              {/* Status Filter */}
+              <div>
+                <select
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                >
+                  <option value="pending">Pending Verification</option>
+                  <option value="approved">Verified Providers</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Service Providers Table */}
+      {!loading && !error && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Provider Details
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Contact
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Submitted Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                      No service providers found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRequests.map((request) => {
+                    const statusInfo = getVerificationStatus(request.verification);
+                    return (
+                      <tr key={request._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{request.fullName}</div>
+                            <div className="text-sm text-gray-500">{request.email}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          <div>{request.phoneNumber}</div>
+                          <div className="text-sm text-gray-500">{request.address}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {new Date(request.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}>
+                            {statusInfo.text}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => viewRequest(request)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                            >
+                              <EyeIcon className="h-4 w-4" />
+                              View
+                            </button>
+                            {/* Show actions only for pending providers (unverified, not rejected) */}
+                            {!request.verification?.isVerified && !request.verification?.isRejected && (
+                              <>
+                                <button
+                                  onClick={() => approveRequest(request._id)}
+                                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <CheckIcon className="h-4 w-4" />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    console.log('Reject button clicked for request:', request);
+                                    showRejectModalWithReason(request);
+                                  }}
+                                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <XMarkIcon className="h-4 w-4" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {/* Show only approve button for rejected providers */}
+                            {request.verification?.isRejected && (
+                              <button
+                                onClick={() => approveRequest(request._id)}
+                                className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                              >
+                                <CheckIcon className="h-4 w-4" />
+                                Re-Approve
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* View Provider Modal */}
+      {showViewModal && selectedRequest && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-screen overflow-y-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Service Provider Documents</h3>
+            
+            {/* Provider Information */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Provider Information</h4>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p><strong>Name:</strong> {selectedRequest.fullName}</p>
+                <p><strong>Email:</strong> {selectedRequest.email}</p>
+                <p><strong>Phone:</strong> {selectedRequest.phoneNumber}</p>
+                <p><strong>Address:</strong> {selectedRequest.address}</p>
+                <p><strong>NIC Number:</strong> {selectedRequest.nicNumber}</p>
+                <p><strong>Registered:</strong> {new Date(selectedRequest.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Document Preview */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Uploaded Documents</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* NIC Front Photo */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">NIC Front</p>
+                  {selectedRequest.documents?.nicFrontPhoto ? (
+                    <img 
+                      src={selectedRequest.documents.nicFrontPhoto} 
+                      alt="NIC Front" 
+                      className="border border-gray-300 rounded-lg w-full h-40 object-cover"
+                    />
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center h-40 flex items-center justify-center">
+                      <DocumentTextIcon className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* NIC Back Photo */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">NIC Back</p>
+                  {selectedRequest.documents?.nicBackPhoto ? (
+                    <img 
+                      src={selectedRequest.documents.nicBackPhoto} 
+                      alt="NIC Back" 
+                      className="border border-gray-300 rounded-lg w-full h-40 object-cover"
+                    />
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center h-40 flex items-center justify-center">
+                      <DocumentTextIcon className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Face Photo */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">Face Photo</p>
+                  {selectedRequest.documents?.facePhoto ? (
+                    <img 
+                      src={selectedRequest.documents.facePhoto} 
+                      alt="Face Photo" 
+                      className="border border-gray-300 rounded-lg w-full h-40 object-cover"
+                    />
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center h-40 flex items-center justify-center">
+                      <DocumentTextIcon className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Business Documents */}
+              {selectedRequest.documents?.businessDocuments && selectedRequest.documents.businessDocuments.length > 0 && (
+                <div className="mt-4">
+                  <p className="font-medium text-gray-900 mb-2">Business Documents</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedRequest.documents.businessDocuments.map((doc, index) => (
+                      <div key={index} className="border border-gray-300 rounded-lg p-3">
+                        <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
+                        {doc.fileUrl ? (
+                          <img 
+                            src={doc.fileUrl} 
+                            alt={doc.fileName} 
+                            className="mt-2 w-full h-32 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                            <DocumentTextIcon className="h-8 w-8 text-gray-400 mx-auto" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Verification Status */}
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Verification Status</h4>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p><strong>Status:</strong> 
+                  <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                    selectedRequest.verification?.isVerified ? 'bg-green-100 text-green-800' :
+                    selectedRequest.verification?.isRejected ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedRequest.verification?.isVerified ? 'Verified' : 
+                     selectedRequest.verification?.isRejected ? 'Rejected' : 'Pending'}
+                  </span>
+                </p>
+                {selectedRequest.verification?.verifiedAt && (
+                  <p className="mt-2"><strong>Verified At:</strong> {new Date(selectedRequest.verification.verifiedAt).toLocaleString()}</p>
+                )}
+                {selectedRequest.verification?.verifiedBy && (
+                  <p className="mt-1"><strong>Verified By:</strong> {selectedRequest.verification.verifiedBy.fullName}</p>
+                )}
+                {selectedRequest.verification?.rejectionReason && (
+                  <p className="mt-1"><strong>Rejection Reason:</strong> {selectedRequest.verification.rejectionReason}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3">
+              {/* Show actions only for pending providers (unverified, not rejected) */}
+              {!selectedRequest.verification?.isVerified && !selectedRequest.verification?.isRejected && (
+                <>
+                  <button
+                    onClick={() => {
+                      approveRequest(selectedRequest._id);
+                      setShowViewModal(false);
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                  >
+                    <CheckIcon className="h-5 w-5" />
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('Reject button clicked in modal for request:', selectedRequest);
+                      setShowViewModal(false);
+                      showRejectModalWithReason(selectedRequest);
+                    }}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                    Reject
+                  </button>
+                </>
+              )}
+              {/* Show only approve button for rejected providers */}
+              {selectedRequest.verification?.isRejected && (
+                <button
+                  onClick={() => {
+                    approveRequest(selectedRequest._id);
+                    setShowViewModal(false);
+                  }}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <CheckIcon className="h-5 w-5" />
+                  Re-Approve
+                </button>
+              )}
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Provider Modal */}
+      {showRejectModal && selectedRequest && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Service Provider</h3>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Provider: {selectedRequest.fullName}</p>
+              <p className="text-sm text-gray-600 mb-4">Email: {selectedRequest.email}</p>
+              
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rejection Reason
+              </label>
+              <textarea
+                className="w-full border border-gray-300 rounded-lg p-2"
+                rows="4"
+                placeholder="Enter reason for rejection..."
+                value={rejectionReason}
+                onChange={(e) => {
+                  console.log('Reason changed to:', e.target.value);
+                  console.log('setRejectionReason function:', typeof setRejectionReason);
+                  setRejectionReason(e.target.value);
+                }}
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={rejectRequest}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg"
+              >
+                Reject Provider
+              </button>
+              <button
+                onClick={() => {
+                  console.log('Cancel button clicked');
+                  console.log('setRejectionReason function:', typeof setRejectionReason);
+                  setShowRejectModal(false);
+                  setSelectedRequest(null);
+                  setRejectionReason('');
+                }}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default KYCReviewPage;
