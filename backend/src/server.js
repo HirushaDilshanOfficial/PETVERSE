@@ -12,6 +12,9 @@ import rateLimiter from "./Middleware/rateLimiter.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import nodemailer from "nodemailer";
+import ratingsRoutes from "./Routes/RatingsRoute.js";
+import contactRoutes from "./Routes/ContactRoute.js";
+import advertisementRoutes from "./Routes/AdvertisementRoute.js";
 
 // Load environment variables
 dotenv.config();
@@ -158,6 +161,9 @@ app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/ratings", ratingsRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/advertisements", advertisementRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

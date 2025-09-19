@@ -1,4 +1,3 @@
-// App.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import ProductPage from "./pages/ProductPage.jsx";
@@ -17,6 +16,12 @@ import ServiceProviderSignup from "./pages/auth/ServiceProviderSignup.js";
 import ForgotPassword from "./pages/auth/ForgotPassword.js";
 // Import test component
 import TestPage from "./pages/TestPage.jsx";
+// Import additional components
+import ServiceDetailPage from "./Pages/ServiceDetailPage";
+import Contactus from "./Pages/Contactus";
+import TestProvider from "./Pages/TestProvider";
+import TestAdmin from "./Pages/TestAdmin";
+import TestHome from "./Pages/TestHome";
 
 function App() {
   return (
@@ -35,6 +40,13 @@ function App() {
         <Route path="/signup/petOwner" element={<PetOwnerSignup />} />
         <Route path="/signup/serviceProvider" element={<ServiceProviderSignup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        {/* Additional Routes */}
+        <Route path="/service/:id" element={<ServiceDetailPage />} />
+        <Route path="/ServiceDetailPage" element={<ServiceDetailPage />} />
+        <Route path="/contactus" element={<Contactus />} />
+        <Route path="/TestAdmin" element={<TestAdmin />} />
+        <Route path="/TestHome" element={<TestHome />} />
+        <Route path="/TestProvider" element={<TestProvider />} />
       </Routes>
     </CartProvider>
   );
