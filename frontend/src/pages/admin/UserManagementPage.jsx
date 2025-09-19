@@ -45,54 +45,30 @@ function UserManagementPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const usersPerPage = 10;
 
-  // Fetch users from API
-  const fetchUsers = async (page = 1, role = filterRole, verified = filterVerified) => {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
+  // Fetch users with pagination
+  const fetchUsers = async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      const token = await currentUser.getIdToken();
-      
-      // Build query parameters
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: usersPerPage.toString(),
-      });
-      
-      if (role !== 'all') params.append('role', role);
-      // For service providers, filter by verification status
-      if (role === 'serviceProvider') {
-        if (verified === 'verified') {
-          params.append('verified', 'true');
-        } else if (verified === 'notVerified') {
-          params.append('verified', 'false');
-        }
-      }
-      
-      const response = await fetch(`http://localhost:4000/api/auth/users?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users?${params}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
-      setUsers(data.users);
-      setCurrentPage(data.pagination.currentPage);
-      setTotalPages(data.pagination.totalPages);
-      setTotalUsers(data.pagination.totalUsers);
-      
-      console.log('✅ Users fetched successfully:', data.users.length, 'users');
-      
-    } catch (err) {
-      console.error('❌ Error fetching users:', err);
-      setError(err.message);
+      setUsers(data.users || []);
+      setTotalPages(data.totalPages || 1);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to fetch users. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -174,7 +150,7 @@ function UserManagementPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}/details`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/details`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -206,7 +182,7 @@ function UserManagementPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -241,7 +217,7 @@ function UserManagementPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -269,7 +245,7 @@ function UserManagementPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}/verify`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/verify`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

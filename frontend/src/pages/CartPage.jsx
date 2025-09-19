@@ -50,6 +50,12 @@ const CartPage = () => {
                   <div>
                     <h2 className="font-semibold text-lg text-[#1E40AF]">{item.name}</h2>
                     <p className="text-gray-700">Rs.{item.price}</p>
+                    <button
+                      onClick={() => navigate(`/products/${item.productId}`)}
+                      className="mt-2 text-sm text-[#1E40AF] hover:text-[#F97316] transition-colors underline"
+                    >
+                      View Details
+                    </button>
                   </div>
                 </div>
 

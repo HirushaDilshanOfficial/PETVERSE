@@ -1,7 +1,9 @@
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const ProductCard = ({ product, onAdd }) => {
+  console.log("ProductCard received product:", product);
+  
   // Handle add to cart click
   const handleAdd = () => {
     const available = Number(product?.pQuantity) || 0;
@@ -32,7 +34,7 @@ const ProductCard = ({ product, onAdd }) => {
           {product.pName || "Unnamed Product"}
         </h2>
         <p className="text-gray-600 text-sm mb-2">
-          {product.pdescription || "No description available"}
+          {product.pdescription || product.pDescription || "No description available"}
         </p>
         <p className="font-semibold text-[#F97316] mb-2">
           Rs. {product.pPrice ?? 0}

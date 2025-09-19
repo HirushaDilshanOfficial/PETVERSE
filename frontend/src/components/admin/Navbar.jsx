@@ -34,7 +34,7 @@ function Navbar() {
     if (window.confirm('Are you sure you want to logout?')) {
       try {
         await signout();
-        navigate('/login');
+        navigate('/');
       } catch (error) {
         console.error('Failed to logout:', error);
         alert('Failed to logout. Please try again.');

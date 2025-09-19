@@ -6,6 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { CartProvider } from "./contexts/CartContext";
 import ProtectedRoute, {
   AdminRoute,
   ServiceProviderRoute,
@@ -13,103 +14,114 @@ import ProtectedRoute, {
 } from "./components/common/ProtectedRoute";
 
 // Auth Pages
-import Login from "./pages/auth/Login";
-import RoleSelection from "./pages/auth/RoleSelection";
-import PetOwnerSignup from "./pages/auth/PetOwnerSignup";
-import ServiceProviderSignup from "./pages/auth/ServiceProviderSignup";
-import ForgotPassword from "./pages/auth/ForgotPassword";
-import AdminLogin from "./pages/auth/AdminLogin";
+import Login from "./pages/auth/Login.js";
+import RoleSelection from "./pages/auth/RoleSelection.js";
+import PetOwnerSignup from "./pages/auth/PetOwnerSignup.js";
+import ServiceProviderSignup from "./pages/auth/ServiceProviderSignup.js";
+import ForgotPassword from "./pages/auth/ForgotPassword.js";
+import AdminLogin from "./pages/auth/AdminLogin.js";
+
+// Home Page
+import Home from "./pages/Home.jsx";
+
+// Product Page
+import ProductPage from "./pages/ProductPage.jsx";
+import ProductDetailedPage from "./pages/ProductDetailedPage.jsx";
 
 // Dashboard Pages
-import ServiceProviderDashboard from "./pages/dashboards/ServiceProviderDashboard";
-import PetOwnerProfile from "./pages/dashboards/PetOwnerProfile";
+import ServiceProviderDashboard from "./pages/dashboards/ServiceProviderDashboard.js";
+import PetOwnerProfile from "./pages/dashboards/PetOwnerProfile.jsx";
 
 // Admin Components
-import AdminLayout from "./layouts/AdminLayout";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import UserManagementPage from "./pages/admin/UserManagementPage";
-import KYCReviewPage from "./pages/admin/KYCReviewPage";
-import InventoryPage from "./pages/admin/InventoryPage";
-import AnalysisPage from "./pages/admin/AnalysisPage";
-import ProfilePage from "./pages/admin/ProfilePage";
-import AdminDashboardRedirect from "./components/admin/AdminDashboardRedirect";
+import AdminLayout from "./layouts/AdminLayout.jsx";
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
+import UserManagementPage from "./pages/admin/UserManagementPage.jsx";
+import KYCReviewPage from "./pages/admin/KYCReviewPage.jsx";
+import InventoryPage from "./pages/admin/InventoryPage.jsx";
+import AnalysisPage from "./pages/admin/AnalysisPage.jsx";
+import ProfilePage from "./pages/admin/ProfilePage.jsx";
+import AdminDashboardRedirect from "./components/admin/AdminDashboardRedirect.jsx";
 
 function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<RoleSelection />} />
-            <Route path="/signup/petOwner" element={<PetOwnerSignup />} />
-            <Route
-              path="/signup/serviceProvider"
-              element={<ServiceProviderSignup />}
-            />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/admin-login" element={<AdminLogin />} />
+        <CartProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Home />} />
+              <Route path="/products" element={<ProductPage />} />
+              <Route path="/products/:id" element={<ProductDetailedPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<RoleSelection />} />
+              <Route path="/signup/petOwner" element={<PetOwnerSignup />} />
+              <Route
+                path="/signup/serviceProvider"
+                element={<ServiceProviderSignup />}
+              />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
 
-            {/* Protected Dashboard Routes */}
-            <Route
-              path="/dashboard/pet-owner/profile"
-              element={
-                <PetOwnerRoute>
-                  <PetOwnerProfile />
-                </PetOwnerRoute>
-              }
-            />
-            <Route
-              path="/dashboard/service-provider"
-              element={
-                <ServiceProviderRoute>
-                  <ServiceProviderDashboard />
-                </ServiceProviderRoute>
-              }
-            />
-            {/* Admin Routes with Layout */}
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <AdminLayout />
-                </AdminRoute>
-              }
-            >
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="users" element={<UserManagementPage />} />
-              <Route path="kyc" element={<KYCReviewPage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="analytics" element={<AnalysisPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-            </Route>
+              {/* Protected Dashboard Routes */}
+              <Route
+                path="/dashboard/pet-owner/profile"
+                element={
+                  <PetOwnerRoute>
+                    <PetOwnerProfile />
+                  </PetOwnerRoute>
+                }
+              />
+              <Route
+                path="/dashboard/service-provider"
+                element={
+                  <ServiceProviderRoute>
+                    <ServiceProviderDashboard />
+                  </ServiceProviderRoute>
+                }
+              />
+              {/* Admin Routes with Layout */}
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<UserManagementPage />} />
+                <Route path="kyc" element={<KYCReviewPage />} />
+                <Route path="inventory" element={<InventoryPage />} />
+                <Route path="analytics" element={<AnalysisPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
 
-            {/* Legacy admin route redirect */}
-            <Route
-              path="/dashboard/admin"
-              element={
-                <AdminRoute>
-                  <AdminDashboardRedirect />
-                </AdminRoute>
-              }
-            />
+              {/* Legacy admin route redirect */}
+              <Route
+                path="/dashboard/admin"
+                element={
+                  <AdminRoute>
+                    <AdminDashboardRedirect />
+                  </AdminRoute>
+                }
+              />
 
-            {/* Generic Dashboard Route - Redirects based on role */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardRedirect />
-                </ProtectedRoute>
-              }
-            />
+              {/* Generic Dashboard Route - Redirects based on role */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardRedirect />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Catch All Route */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </Router>
+              {/* Catch All Route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+        </CartProvider>
       </AuthProvider>
     </div>
   );

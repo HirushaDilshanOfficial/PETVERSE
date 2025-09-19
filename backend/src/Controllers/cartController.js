@@ -7,7 +7,10 @@ const initCart = (req) => {
 
 // Calculate totals
 const calculateTotals = (cart) => {
-  const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cart.reduce(
+    (acc, item) => acc + item.price * item.quantity,
+    0
+  );
   const total = subtotal;
   return { subtotal, total };
 };
@@ -28,7 +31,9 @@ export async function addToCart(req, res) {
     const product = await Product.findOne({ productID });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    const existingItem = req.session.cart.find(item => item.productId === productID);
+    const existingItem = req.session.cart.find(
+      (item) => item.productId === productID
+    );
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
@@ -36,12 +41,15 @@ export async function addToCart(req, res) {
         productId: product.productID,
         name: product.pName,
         price: product.pPrice ?? 0,
-        quantity
+        quantity,
+        image: product.pImage || null,
       });
     }
 
     const { subtotal, total } = calculateTotals(req.session.cart);
-    res.status(200).json({ message: "Item added", cart: req.session.cart, subtotal, total });
+    res
+      .status(200)
+      .json({ message: "Item added", cart: req.session.cart, subtotal, total });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
@@ -54,23 +62,33 @@ export async function updateCartItem(req, res) {
   const { productId } = req.params;
   const { quantity } = req.body;
 
-  const item = req.session.cart.find(i => i.productId === productId);
+  const item = req.session.cart.find((i) => i.productId === productId);
   if (!item) return res.status(404).json({ message: "Item not found" });
 
   item.quantity = quantity;
 
   const { subtotal, total } = calculateTotals(req.session.cart);
-  res.json({ message: "Cart updated", cart: req.session.cart, subtotal, total });
+  res.json({
+    message: "Cart updated",
+    cart: req.session.cart,
+    subtotal,
+    total,
+  });
 }
 
 // Remove item from cart
 export async function removeCartItem(req, res) {
   initCart(req);
   const { productId } = req.params;
-  req.session.cart = req.session.cart.filter(i => i.productId !== productId);
+  req.session.cart = req.session.cart.filter((i) => i.productId !== productId);
 
   const { subtotal, total } = calculateTotals(req.session.cart);
-  res.json({ message: "Item removed", cart: req.session.cart, subtotal, total });
+  res.json({
+    message: "Item removed",
+    cart: req.session.cart,
+    subtotal,
+    total,
+  });
 }
 
 // Clear cart

@@ -12,13 +12,14 @@ import { uploadSingleFile } from "../Middleware/fileUpload.js";
 
 const router = express.Router();
 
-// All product routes require admin authentication
+// Public routes - no authentication required
 // Get all products
-router.get("/", authenticateUser, requireAdmin, getAllProducts);
+router.get("/", getAllProducts);
 
 // Get product by ID
-router.get("/:productId", authenticateUser, requireAdmin, getProductById);
+router.get("/:productId", getProductById);
 
+// Admin protected routes
 // Create new product (with file upload support)
 router.post(
   "/",

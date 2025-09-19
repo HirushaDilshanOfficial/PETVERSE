@@ -8,7 +8,7 @@ const AdminLogin = () => {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const { signin, loading, error, clearError } = useAuth();
+  const { signin, signout, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -24,11 +24,13 @@ const AdminLogin = () => {
       const user = await signin(formData.email, formData.password);
       // Check if user is admin after login
       if (user && user.role === "admin") {
-        navigate("/dashboard/admin");
+        navigate("/admin/dashboard");
       } else {
         // If not admin, show error and logout
         alert("Access denied. Admin credentials required.");
         await signout();
+        // Redirect to home page after logout
+        navigate("/");
       }
     } catch (err) {
       console.error("Admin login failed:", err);

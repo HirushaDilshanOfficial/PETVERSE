@@ -2,6 +2,8 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
 const PaymentForm = ({ orderID, amount, userEmail }) => {
   const [formData, setFormData] = useState({
     nameOnCard: "",
@@ -31,7 +33,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
     setLoading(true);
     setMessage("");
     try {
-      await axios.post("http://localhost:5001/api/send-otp", {
+      await axios.post(`${API_BASE_URL}/send-otp`, {
         email: userEmail,
         orderID,
         cardDetails: formData, // optional, if you want to store temporarily
@@ -50,7 +52,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
     setLoading(true);
     setMessage("");
     try {
-      const res = await axios.post("http://localhost:5001/api/verify-otp", {
+      const res = await axios.post(`${API_BASE_URL}/verify-otp`, {
         email: userEmail,
         otp,
         orderID,

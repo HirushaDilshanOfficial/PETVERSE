@@ -18,6 +18,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import { makeAuthenticatedRequest } from '../../utils/authUtils';
+import { useAuth } from '../../contexts/AuthContext';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -36,6 +37,8 @@ ChartJS.register(
 
 // Analytics Page using Chart.js with real data
 function AnalysisPage() {
+  const { currentUser } = useAuth();
+  
   // State for chart data
   const [userGrowthData, setUserGrowthData] = useState(null);
   const [productCategoryData, setProductCategoryData] = useState(null);
@@ -45,30 +48,75 @@ function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
+  // Fetch analytics data
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/analytics`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setAnalyticsData(data);
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
+      setError('Failed to fetch analytics data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch real data from backend
   useEffect(() => {
     const fetchData = async () => {
+      // Check if user is authenticated before fetching data
+      if (!currentUser) {
+        console.log('User not authenticated, skipping data fetch');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       try {
+        console.log('Fetching analytics data...');
+        
         // Fetch users data (all users, not just first page)
         const usersResponse = await makeAuthenticatedRequest('/auth/users?limit=1000');
+        console.log('Users response:', usersResponse);
         const users = usersResponse.users || [];
         const totalUsers = usersResponse.pagination?.totalUsers || users.length;
+        console.log('Users data:', users);
         
         // Fetch products data
         const productsResponse = await makeAuthenticatedRequest('/products');
+        console.log('Products response:', productsResponse);
         const products = productsResponse.products || [];
+        console.log('Products data:', products);
         
         // Fetch services data
         const servicesResponse = await makeAuthenticatedRequest('/services');
+        console.log('Services response:', servicesResponse);
         const services = servicesResponse || [];
+        console.log('Services data:', services);
         
         // Process user growth data (group by month)
         const userGrowth = processUserGrowthData(users);
+        console.log('User growth data:', userGrowth);
         
         // Process product category data
         const productCategories = processProductCategoryData(products);
+        console.log('Product categories data:', productCategories);
         
         // Calculate summary statistics
         const stats = {
@@ -77,35 +125,70 @@ function AnalysisPage() {
           totalServices: services.length,
           activeUsers: users.filter(user => user.isActive !== false).length
         };
+        console.log('Summary stats:', stats);
         
         // Generate recent activity (simulated for now)
         const activity = generateRecentActivity(users, products, services);
+        console.log('Recent activity:', activity);
         
         setUserGrowthData(userGrowth);
         setProductCategoryData(productCategories);
         setSummaryStats(stats);
         setRecentActivity(activity);
+        
+        console.log('All data set successfully');
       } catch (err) {
         console.error('Error fetching analytics data:', err);
-        setError('Failed to load analytics data. Please try again later.');
+        // Provide more specific error messages
+        if (err.message.includes('Token') || err.message.includes('auth')) {
+          setError('Authentication error. Please log in again.');
+        } else if (err.message.includes('Failed to fetch')) {
+          setError('Network error. Please check your connection and try again.');
+        } else {
+          setError('Failed to load analytics data. Please try again later.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, currentUser]);
 
   // Process user growth data by month
   const processUserGrowthData = (users) => {
+    // Handle case where users data might be invalid
+    if (!Array.isArray(users) || users.length === 0) {
+      return {
+        labels: [],
+        datasets: [
+          {
+            label: 'New Users',
+            data: [],
+            backgroundColor: 'rgba(249, 115, 22, 0.6)',
+            borderColor: 'rgba(249, 115, 22, 1)',
+            borderWidth: 1,
+          },
+        ],
+      };
+    }
+    
     // Group users by month
     const monthlyCounts = {};
     
     users.forEach(user => {
       if (user.createdAt) {
-        const date = new Date(user.createdAt);
-        const month = date.toLocaleString('default', { month: 'short' });
-        monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
+        try {
+          const date = new Date(user.createdAt);
+          // Check if date is valid
+          if (isNaN(date.getTime())) {
+            return;
+          }
+          const month = date.toLocaleString('default', { month: 'short' });
+          monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
+        } catch (err) {
+          console.warn('Error processing user date:', user.createdAt, err);
+        }
       }
     });
     
@@ -129,6 +212,21 @@ function AnalysisPage() {
 
   // Process product category data
   const processProductCategoryData = (products) => {
+    // Handle case where products data might be invalid
+    if (!Array.isArray(products) || products.length === 0) {
+      return {
+        labels: [],
+        datasets: [
+          {
+            data: [],
+            backgroundColor: [],
+            borderColor: [],
+            borderWidth: 1,
+          },
+        ],
+      };
+    }
+    
     // Count products by category
     const categoryCounts = {};
     
@@ -180,35 +278,44 @@ function AnalysisPage() {
   const generateRecentActivity = (users, products, services) => {
     const activity = [];
     
-    // Add recent user registrations
-    const recentUsers = users
-      .filter(user => user.createdAt)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 3);
-    
-    recentUsers.forEach(user => {
-      activity.push({
-        id: `user-${user._id}`,
-        action: 'New user registered',
-        user: user.fullName,
-        time: formatTimeAgo(user.createdAt)
+    try {
+      // Handle case where data might be invalid
+      if (!Array.isArray(users) || !Array.isArray(products)) {
+        return activity;
+      }
+      
+      // Add recent user registrations
+      const recentUsers = users
+        .filter(user => user.createdAt)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 3);
+      
+      recentUsers.forEach(user => {
+        activity.push({
+          id: `user-${user._id}`,
+          action: 'New user registered',
+          user: user.fullName,
+          time: formatTimeAgo(user.createdAt)
+        });
       });
-    });
-    
-    // Add recent products
-    const recentProducts = products
-      .filter(product => product.createdAt)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 2);
-    
-    recentProducts.forEach(product => {
-      activity.push({
-        id: `product-${product._id}`,
-        action: 'Product added',
-        product: product.pName,
-        time: formatTimeAgo(product.createdAt)
+      
+      // Add recent products
+      const recentProducts = products
+        .filter(product => product.createdAt)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 2);
+      
+      recentProducts.forEach(product => {
+        activity.push({
+          id: `product-${product._id}`,
+          action: 'Product added',
+          product: product.pName,
+          time: formatTimeAgo(product.createdAt)
+        });
       });
-    });
+    } catch (err) {
+      console.warn('Error generating recent activity:', err);
+    }
     
     return activity;
   };
@@ -457,6 +564,23 @@ function AnalysisPage() {
     );
   }
 
+  // Show a message if user is not authenticated
+  if (!currentUser) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Authentication required</p>
+          <p className="text-gray-600 mt-2">Please log in to view analytics data.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Page Title */}
@@ -503,7 +627,13 @@ function AnalysisPage() {
             <h3 className="text-lg font-medium text-gray-900">User Growth</h3>
           </div>
           <div className="h-64">
-            {userGrowthData && <Bar data={userGrowthData} options={userGrowthOptions} />}
+            {userGrowthData && userGrowthData.labels && userGrowthData.labels.length > 0 ? (
+              <Bar data={userGrowthData} options={userGrowthOptions} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                No user growth data available
+              </div>
+            )}
           </div>
         </div>
 
@@ -514,7 +644,13 @@ function AnalysisPage() {
             <h3 className="text-lg font-medium text-gray-900">Product Categories</h3>
           </div>
           <div className="h-64">
-            {productCategoryData && <Pie data={productCategoryData} options={productCategoryOptions} />}
+            {productCategoryData && productCategoryData.labels && productCategoryData.labels.length > 0 ? (
+              <Pie data={productCategoryData} options={productCategoryOptions} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                No product category data available
+              </div>
+            )}
           </div>
         </div>
 
@@ -524,19 +660,19 @@ function AnalysisPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-orange-50 rounded">
               <span className="text-gray-700">Total Users</span>
-              <span className="font-bold text-orange-600">{summaryStats?.totalUsers || 0}</span>
+              <span className="font-bold text-orange-600">{summaryStats?.totalUsers ?? 0}</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
               <span className="text-gray-700">Total Products</span>
-              <span className="font-bold text-blue-600">{summaryStats?.totalProducts || 0}</span>
+              <span className="font-bold text-blue-600">{summaryStats?.totalProducts ?? 0}</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-green-50 rounded">
               <span className="text-gray-700">Total Services</span>
-              <span className="font-bold text-green-600">{summaryStats?.totalServices || 0}</span>
+              <span className="font-bold text-green-600">{summaryStats?.totalServices ?? 0}</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-purple-50 rounded">
               <span className="text-gray-700">Active Users</span>
-              <span className="font-bold text-purple-600">{summaryStats?.activeUsers || 0}</span>
+              <span className="font-bold text-purple-600">{summaryStats?.activeUsers ?? 0}</span>
             </div>
           </div>
         </div>

@@ -29,7 +29,12 @@ connectDB();
 // CORS configuration
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3003",
+      "http://localhost:5173",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -92,12 +97,14 @@ const transporter = nodemailer.createTransport({
 });
 
 // Helper to generate OTP
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 // Send OTP
 app.post("/api/send-otp", async (req, res) => {
   const { email, orderID } = req.body;
-  if (!email || !orderID) return res.status(400).json({ message: "Email and orderID are required" });
+  if (!email || !orderID)
+    return res.status(400).json({ message: "Email and orderID are required" });
 
   const otp = generateOTP();
   const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
@@ -121,15 +128,18 @@ app.post("/api/send-otp", async (req, res) => {
 // Verify OTP
 app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
-  if (!email || !otp) return res.status(400).json({ message: "Email and OTP are required" });
+  if (!email || !otp)
+    return res.status(400).json({ message: "Email and OTP are required" });
 
   const record = otpStore.get(email);
-  if (!record) return res.status(400).json({ message: "No OTP found for this email" });
+  if (!record)
+    return res.status(400).json({ message: "No OTP found for this email" });
   if (record.expires < Date.now()) {
     otpStore.delete(email);
     return res.status(400).json({ message: "OTP expired" });
   }
-  if (record.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
+  if (record.otp !== otp)
+    return res.status(400).json({ message: "Invalid OTP" });
 
   // OTP is valid → remove it
   otpStore.delete(email);
@@ -175,8 +185,6 @@ app.listen(PORT, () => {
   console.log(`🚀 PETVERSE Backend server started on PORT: ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
-    `🔗 Frontend URL: ${
-      process.env.FRONTEND_URL || "http://localhost:3000"
-    }`
+    `🔗 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:3000"}`
   );
 });

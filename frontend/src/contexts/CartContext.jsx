@@ -11,11 +11,13 @@ export const CartProvider = ({ children }) => {
   const [loadingCart, setLoadingCart] = useState(false);
   const [adding, setAdding] = useState(false);
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
   // Fetch cart from backend once
   const getCart = async () => {
     setLoadingCart(true);
     try {
-      const res = await axios.get("http://localhost:5001/api/cart", {
+      const res = await axios.get(`${API_BASE_URL}/cart`, {
         withCredentials: true,
       });
       const data = res.data;
@@ -37,7 +39,7 @@ export const CartProvider = ({ children }) => {
 
     try {
       const res = await axios.post(
-        "http://localhost:5001/api/cart/add",
+        `${API_BASE_URL}/cart/add`,
         { productID, quantity },
         { withCredentials: true }
       );
@@ -58,7 +60,7 @@ export const CartProvider = ({ children }) => {
   const updateCartItem = async (productId, quantity) => {
     try {
       const res = await axios.put(
-        `http://localhost:5001/api/cart/${productId}`,
+        `${API_BASE_URL}/cart/${productId}`,
         { quantity },
         { withCredentials: true }
       );
@@ -77,7 +79,7 @@ export const CartProvider = ({ children }) => {
   const removeCartItem = async (productId) => {
     try {
       const res = await axios.delete(
-        `http://localhost:5001/api/cart/${productId}`,
+        `${API_BASE_URL}/cart/${productId}`,
         { withCredentials: true }
       );
       const data = res.data;
@@ -95,7 +97,7 @@ export const CartProvider = ({ children }) => {
   const clearCart = async () => {
     try {
       const res = await axios.delete(
-        "http://localhost:5001/api/cart/clear",
+        `${API_BASE_URL}/cart/clear`,
         { withCredentials: true }
       );
       const data = res.data;

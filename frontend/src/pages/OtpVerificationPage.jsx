@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useLocation } from "react-router";
 import axios from "axios";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
 const OtpVerification = () => {
   const { state } = useLocation(); // receives orderID, amount, email, formData
   const [otp, setOtp] = useState("");
@@ -15,14 +17,14 @@ const OtpVerification = () => {
 
     try {
       // Verify OTP on backend
-      const res = await axios.post("http://localhost:5001/api/verify-otp", {
+      const res = await axios.post(`${API_BASE_URL}/verify-otp`, {
         orderID: state.orderID,
         otp,
       });
 
       // On success, open PDF in new tab
       window.open(
-        `http://localhost:5001/api/generate-pdf?orderID=${state.orderID}`,
+        `${API_BASE_URL}/generate-pdf?orderID=${state.orderID}`,
         "_blank"
       );
     } catch (err) {

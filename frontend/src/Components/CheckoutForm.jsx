@@ -3,6 +3,7 @@ import axios from "axios";
 import { CartContext } from "../contexts/CartContext";
 
 const DELIVERY_FEE = 300;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
 const inputBase =
   "block w-full bg-white text-gray-900 border border-gray-300 rounded px-3 py-2 mb-3 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-[#1E40AF] disabled:bg-white disabled:text-gray-900 disabled:opacity-100";
@@ -30,7 +31,7 @@ const CheckoutForm = ({ userID, onPlaceOrder }) => {
     const fetchUser = async () => {
       if (!userID) return;
       try {
-        const res = await axios.get(`http://localhost:5001/api/users/${userID}`, { withCredentials: true });
+        const res = await axios.get(`${API_BASE_URL}/users/${userID}`, { withCredentials: true });
         const user = res.data || {};
         const prefill = {
           fullName: user.fullName || "",

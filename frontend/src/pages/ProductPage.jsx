@@ -6,6 +6,7 @@ import RateLimitedUI from "../Components/RateLimitedUI";
 import { CartContext } from "../contexts/CartContext";
 
 const ProductPage = () => {
+  console.log("ProductPage component loaded"); // Add this for debugging
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -16,22 +17,32 @@ const ProductPage = () => {
 
   
   const { addToCart } = useContext(CartContext);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await axios.get("http://localhost:5001/api/products");
-        setProducts(res.data);
-        setFilteredProducts(res.data);
+        console.log("Fetching products from API...");
+        const res = await axios.get(`${API_BASE_URL}/products`);
+        console.log("API Response:", res);
+        
+        // Fix: Access the products array from the response data
+        const productsData = res.data.products || [];
+        console.log("Products data:", productsData);
+        
+        setProducts(productsData);
+        setFilteredProducts(productsData);
 
         // Extract unique categories
-        const uniqueCategories = [...new Set(res.data.map((p) => p.pCategory))];
+        const uniqueCategories = [...new Set(productsData.map((p) => p.pCategory))];
+        console.log("Categories:", uniqueCategories);
         setCategories(uniqueCategories);
 
         setIsRateLimited(false);
       } catch (error) {
         console.error("Error fetching products:", error);
+        console.error("Error response:", error.response);
         if (error.response?.status === 429) {
           setIsRateLimited(true);
         } else {
@@ -47,6 +58,7 @@ const ProductPage = () => {
 
   // Filter products based on search and category
   useEffect(() => {
+    console.log("Filtering products:", { products, selectedCategory, search });
     let tempProducts = [...products];
 
     if (selectedCategory) {
@@ -61,6 +73,7 @@ const ProductPage = () => {
       );
     }
 
+    console.log("Filtered products:", tempProducts);
     setFilteredProducts(tempProducts);
   }, [search, selectedCategory, products]);
 

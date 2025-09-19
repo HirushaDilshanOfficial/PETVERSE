@@ -15,7 +15,10 @@ function Navbar() {
 
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      alert('Logout functionality would be implemented here');
+      // This is a placeholder implementation
+      // In a real application, this would call the actual logout function
+      // For now, we'll redirect to the home page
+      window.location.href = '/';
     }
   };
 
@@ -108,7 +111,7 @@ function Navbar() {
 const Icons = {
   Users: () => (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
   Document: () => (
@@ -149,6 +152,7 @@ function AdminDashboard() {
   
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   useEffect(() => {
     // Load dashboard stats from API
@@ -159,7 +163,7 @@ function AdminDashboard() {
         const token = await currentUser.getIdToken();
         
         // Fetch all users to calculate statistics
-        const response = await fetch('http://localhost:4000/api/auth/users?page=1&limit=100', {
+        const response = await fetch(`${API_BASE_URL}/auth/users?page=1&limit=100`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,

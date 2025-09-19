@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5001/api"; // adjust if backend runs elsewhere
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
 // Get all items in cart
 export const getCart = async () => {
@@ -10,29 +11,36 @@ export const getCart = async () => {
 
 // Add item to cart
 export const addToCart = async (productId, quantity) => {
-  const res = await axios.post(`${API_URL}/cart/add`, { productId, quantity }, { withCredentials: true });
+  const res = await axios.post(
+    `${API_URL}/cart/add`,
+    { productId, quantity },
+    { withCredentials: true }
+  );
   return res.data;
 };
 
 // Update cart item
 export const updateCartItem = async (productID, quantity) => {
   const res = await axios.put(
-    `${API_URL}/cart/${productID}`, 
-    { quantity }, 
+    `${API_URL}/cart/${productID}`,
+    { quantity },
     { withCredentials: true }
   );
   return res.data;
 };
 
-
 // Remove item from cart
 export const removeCartItem = async (productId) => {
-  const res = await axios.delete(`${API_URL}/cart/${productId}`, { withCredentials: true });
+  const res = await axios.delete(`${API_URL}/cart/${productId}`, {
+    withCredentials: true,
+  });
   return res.data;
 };
 
 // Clear entire cart
 export const clearCart = async () => {
-  const res = await axios.delete(`${API_URL}/cart/clear`, { withCredentials: true });
+  const res = await axios.delete(`${API_URL}/cart/clear`, {
+    withCredentials: true,
+  });
   return res.data;
 };

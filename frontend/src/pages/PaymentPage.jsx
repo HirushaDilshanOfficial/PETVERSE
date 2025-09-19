@@ -1,5 +1,5 @@
 // Pages/PaymentPage.jsx
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router-dom";
 import PaymentForm from "../Components/PaymentForm";
 
 const PaymentPage = () => {

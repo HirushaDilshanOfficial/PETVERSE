@@ -16,7 +16,7 @@ function KYCReviewPage() {
   const { currentUser } = useAuth();
   
   // State for KYC requests and UI
-  const [kycRequests, setKycRequests] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,54 +25,45 @@ function KYCReviewPage() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // State for notifications
   const [notifications, setNotifications] = useState([]);
 
-  // Fetch service providers from API
-  const fetchKYCRequests = async () => {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
+  // Fetch pending KYC requests
+  const fetchPendingRequests = async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      const token = await currentUser.getIdToken();
-      
-      // Build query parameters - removed verified filter to show all providers
-      const params = new URLSearchParams({
-        role: 'serviceProvider',
-        page: '1',
-        limit: '100'
-      });
-      
-      const response = await fetch(`http://localhost:4000/api/auth/users?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users?${params}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch service providers: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      setKycRequests(data.users);
-      
-      console.log('✅ Service providers fetched successfully:', data.users.length, 'providers');
-      
-    } catch (err) {
-      console.error('❌ Error fetching service providers:', err);
-      setError(err.message);
+      setPendingRequests(data.users || []);
+      setTotalPages(data.totalPages || 1);
+    } catch (error) {
+      console.error('Error fetching pending requests:', error);
+      setError('Failed to fetch pending KYC requests. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load service providers on component mount
+  // Load pending KYC requests on component mount
   useEffect(() => {
     if (currentUser) {
-      fetchKYCRequests();
+      fetchPendingRequests();
     }
   }, [currentUser]);
 
@@ -86,7 +77,7 @@ function KYCReviewPage() {
   };
 
   // Filter service providers based on search and status
-  const filteredRequests = kycRequests.filter(request => {
+  const filteredRequests = pendingRequests.filter(request => {
     const matchesSearch = 
       (request.fullName && request.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (request.email && request.email.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -108,7 +99,7 @@ function KYCReviewPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${userId}/verify`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/verify`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -158,7 +149,7 @@ function KYCReviewPage() {
     try {
       const token = await currentUser.getIdToken();
       
-      const response = await fetch(`http://localhost:4000/api/auth/users/${selectedRequest._id}/verify`, {
+      const response = await fetch(`${API_BASE_URL}/auth/users/${selectedRequest._id}/verify`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

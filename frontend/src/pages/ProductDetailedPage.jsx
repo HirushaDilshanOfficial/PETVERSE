@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { CartContext } from "../contexts/CartContext";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ const ProductDetailedPage = () => {
   const [quantity, setQuantity] = useState(1);
 
   const { addToCart } = useContext(CartContext);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Fetch product and always show latest stock
   useEffect(() => {
@@ -20,11 +21,11 @@ const ProductDetailedPage = () => {
     const fetchProduct = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(`http://localhost:5001/api/products/${id}`);
+        const res = await axios.get(`${API_BASE_URL}/products/${id}`);
         if (!canceled) {
-          setProduct(res.data);
+          setProduct(res.data.product);
           // Set quantity to 1 if stock > 0, else 0
-          setQuantity(res.data.pQuantity > 0 ? 1 : 0);
+          setQuantity(res.data.product.pQuantity > 0 ? 1 : 0);
         }
       } catch (error) {
         if (!canceled) {
@@ -120,7 +121,7 @@ const ProductDetailedPage = () => {
           Available stocks: {product.pQuantity ?? 0}
         </p>
           <p className="mt-6 text-gray-700 leading-relaxed">
-            {product.pdescription || "No description available for this product."}
+            {product.pDescription || "No description available for this product."}
           </p>
 
           {/* Quantity Selector */}
@@ -160,7 +161,7 @@ const ProductDetailedPage = () => {
               onClick={addToCartHandler}
               disabled={product.pQuantity === 0}
               className={`flex-1 py-3 px-6 rounded-md font-bold text-white transition-colors duration-300 ${
-                product.pquantity === 0
+                product.pQuantity === 0
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[#1E40AF] hover:bg-[#F97316]"
               }`}
@@ -170,9 +171,9 @@ const ProductDetailedPage = () => {
 
             <button
               onClick={buyNowHandler}
-              disabled={product.pQSuantity === 0}
+              disabled={product.pQuantity === 0}
               className={`flex-1 py-3 px-6 rounded-md font-bold text-white transition-colors duration-300 ${
-                product.pquantity === 0
+                product.pQuantity === 0
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[#1E40AF] hover:bg-[#F97316]"
               }`}

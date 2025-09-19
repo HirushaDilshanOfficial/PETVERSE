@@ -76,34 +76,29 @@ function InventoryPage() {
     }, 3000);
   };
   
-  // Fetch products from API
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
+  // Fetch products from backend
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      const token = await currentUser.getIdToken();
-      
-      const response = await fetch('http://localhost:4000/api/products', {
+      const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      setProducts(data.products);
-      
-      console.log('✅ Products fetched successfully:', data.products.length, 'products');
-      
-    } catch (err) {
-      console.error('❌ Error fetching products:', err);
-      setError(err.message);
+      setProducts(data.products || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setError('Failed to fetch products. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -302,7 +297,7 @@ function InventoryPage() {
         formData.append('pImage', newProduct.pImage);
       }
       
-      const response = await fetch('http://localhost:4000/api/products', {
+      const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -348,7 +343,7 @@ function InventoryPage() {
       try {
         const token = await currentUser.getIdToken();
         
-        const response = await fetch(`http://localhost:4000/api/products/${productId}`, {
+        const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -450,7 +445,7 @@ function InventoryPage() {
         formData.append('pImage', newProduct.pImage);
       }
       
-      const response = await fetch(`http://localhost:4000/api/products/${selectedProduct.productID}`, {
+      const response = await fetch(`${API_BASE_URL}/products/${selectedProduct.productID}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -494,13 +489,15 @@ function InventoryPage() {
   const toggleProductStatus = async (productId, currentStatus) => {
     try {
       const token = await currentUser.getIdToken();
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
       
-      const response = await fetch(`http://localhost:4000/api/products/${productId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/products/${productId}/status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ status: newStatus }),
       });
       
       if (!response.ok) {
@@ -511,7 +508,6 @@ function InventoryPage() {
       // Refresh products list
       fetchProducts();
       
-      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
       showNotification(`Product ${newStatus.toLowerCase()} successfully!`, 'success');
       
     } catch (err) {

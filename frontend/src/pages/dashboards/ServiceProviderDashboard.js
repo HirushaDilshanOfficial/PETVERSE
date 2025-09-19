@@ -1,13 +1,17 @@
 import React, { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const ServiceProviderDashboard = () => {
   const { userProfile, getDisplayName, signout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
 
   const handleLogout = async () => {
     try {
       await signout();
+      // Redirect to home page after logout
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }
