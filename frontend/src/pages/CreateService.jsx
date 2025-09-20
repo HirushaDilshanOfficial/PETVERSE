@@ -41,7 +41,7 @@ const CreateService = () => {
     const files = Array.from(e.target.files || []);
     setImages(files);
   };
-
+//update pack
   const updatePackageField = (idx, field, value) => {
     setPackages(prev => {
       const next = [...prev];

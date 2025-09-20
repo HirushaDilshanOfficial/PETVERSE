@@ -166,7 +166,7 @@ const EditService = () => {
             onChange={(e) => setAddress(e.target.value)}
           />
         </div>
-
+{/* Packages Section */}
         {/* Packages Section */}
         <div className="divider">Packages</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
