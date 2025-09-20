@@ -6,15 +6,19 @@ const CartPage = () => {
   const { cart, subtotal, updateCartItem, removeCartItem } = useContext(CartContext);
   const navigate = useNavigate();
 
+  console.log("CartPage - Cart data:", cart); // Debug log
+  console.log("CartPage - Subtotal:", subtotal); 
+
   const handleProceedToCheckout = () => {
-    if (cart.length === 0) {
+    if (!cart || cart.length === 0) {
       alert("Your cart is empty!");
       return;
     }
     navigate("/checkout");
   };
 
-  if (cart.length === 0) {
+  // Check if cart is properly initialized
+  if (!cart || cart.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
         <h1 className="text-3xl font-bold text-[#1E40AF] mb-4">Your cart</h1>
@@ -38,20 +42,20 @@ const CartPage = () => {
           <div className="flex-1 bg-white p-6 rounded-lg shadow-md mb-8 lg:mb-0">
             {cart.map((item) => (
               <div
-                key={item.productId}
+                key={item.productId || item.productID}
                 className="flex items-center justify-between py-4 border-b last:border-b-0"
               >
                 <div className="flex items-center space-x-4">
                   <img
-                    src={item.image || "https://placehold.co/100x100?text=No+Image"}
-                    alt={item.name}
+                    src={item.image || item.pImage || "https://placehold.co/100x100?text=No+Image"}
+                    alt={item.name || item.pName}
                     className="w-20 h-20 object-cover rounded-lg"
                   />
                   <div>
-                    <h2 className="font-semibold text-lg text-[#1E40AF]">{item.name}</h2>
-                    <p className="text-gray-700">Rs.{item.price}</p>
+                    <h2 className="font-semibold text-lg text-[#1E40AF]">{item.name || item.pName}</h2>
+                    <p className="text-gray-700">Rs.{item.price || item.pPrice}</p>
                     <button
-                      onClick={() => navigate(`/products/${item.productId}`)}
+                      onClick={() => navigate(`/products/${item.productId || item.productID}`)}
                       className="mt-2 text-sm text-[#1E40AF] hover:text-[#F97316] transition-colors underline"
                     >
                       View Details
@@ -62,7 +66,7 @@ const CartPage = () => {
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
                     <button
-                      onClick={() => updateCartItem(item.productId, item.quantity - 1)}
+                      onClick={() => updateCartItem(item.productId || item.productID, item.quantity - 1)}
                       disabled={item.quantity <= 1}
                       className="bg-white text-gray-800 px-3 py-2 text-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -72,20 +76,20 @@ const CartPage = () => {
                       type="number"
                       value={item.quantity}
                       onChange={(e) =>
-                        updateCartItem(item.productId, parseInt(e.target.value))
+                        updateCartItem(item.productId || item.productID, parseInt(e.target.value))
                       }
                       className="w-12 text-center border-l border-r border-gray-300 py-2 focus:outline-none bg-white"
                       min="1"
                     />
                     <button
-                      onClick={() => updateCartItem(item.productId, item.quantity + 1)}
+                      onClick={() => updateCartItem(item.productId || item.productID, item.quantity + 1)}
                       className="bg-white text-gray-800 px-3 py-2 text-lg hover:bg-gray-100 transition-colors"
                     >
                       +
                     </button>
                   </div>
                   <button
-                    onClick={() => removeCartItem(item.productId)}
+                    onClick={() => removeCartItem(item.productId || item.productID)}
                     className="text-gray-500 hover:text-red-500 transition-colors"
                   >
                     Remove
@@ -99,7 +103,7 @@ const CartPage = () => {
           <div className="lg:w-96 bg-white p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center pb-4 border-b border-gray-200">
               <span className="text-gray-600">Subtotal</span>
-              <span className="text-2xl font-bold text-[#1E40AF]">Rs {subtotal.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-[#1E40AF]">Rs {subtotal?.toFixed(2) || '0.00'}</span>
             </div>
             <p className="text-sm text-gray-500 mt-2">Taxes and shipping calculated at checkout</p>
 

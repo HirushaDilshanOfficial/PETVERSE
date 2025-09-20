@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 import { 
   MagnifyingGlassIcon, 
   EyeIcon,
@@ -14,7 +15,7 @@ import {
 
 // Simple User Management Page for beginners
 function UserManagementPage() {
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
   
   // State for users list and UI
   const [users, setUsers] = useState([]);
@@ -22,7 +23,7 @@ function UserManagementPage() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
-  const [filterVerified, setFilterVerified] = useState('notVerified');
+  const [filterVerified, setFilterVerified] = useState('all');
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [modalMode, setModalMode] = useState('view');
@@ -48,15 +49,41 @@ function UserManagementPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Fetch users with pagination
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = 1, role = 'all', verified = 'all') => {
     try {
+      if (authLoading) return; // Wait for auth to load
+      // Check if user is authenticated and is an admin
+      if (!currentUser || currentUser.role !== 'admin') return;
+      
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/auth/users?${params}`, {
+      setError(null);
+      
+      // Get Firebase ID token for authentication
+      const token = await getIdToken();
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', page);
+      queryParams.append('limit', usersPerPage);
+      
+      if (role !== 'all') {
+        queryParams.append('role', role);
+      }
+      
+      if (verified !== 'all') {
+        queryParams.append('verified', verified);
+      }
+      
+      if (searchTerm) {
+        queryParams.append('search', searchTerm);
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/auth/users?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        }
       });
 
       if (!response.ok) {
@@ -65,7 +92,8 @@ function UserManagementPage() {
 
       const data = await response.json();
       setUsers(data.users || []);
-      setTotalPages(data.totalPages || 1);
+      setTotalPages(data.pagination?.totalPages || 1);
+      setTotalUsers(data.pagination?.totalUsers || 0);
     } catch (error) {
       console.error('Error fetching users:', error);
       setError('Failed to fetch users. Please try again later.');
@@ -76,10 +104,12 @@ function UserManagementPage() {
 
   // Load users on component mount and when filters change
   useEffect(() => {
-    if (currentUser) {
-      fetchUsers(1, filterRole, filterVerified);
+    if (authLoading) return; // Wait for auth to load
+    // Check if user is authenticated and is an admin
+    if (currentUser && currentUser.role === 'admin') {
+      fetchUsers(currentPage, filterRole, filterVerified);
     }
-  }, [currentUser, filterRole, filterVerified]);
+  }, [currentUser, filterRole, filterVerified, currentPage, authLoading, searchTerm]);
 
   // Filter users based on search term (client-side search)
   const filteredUsers = users.filter(user => {
@@ -93,7 +123,7 @@ function UserManagementPage() {
   // Handle pagination
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchUsers(newPage, filterRole, filterVerified);
+      setCurrentPage(newPage);
     }
   };
 
@@ -102,7 +132,7 @@ function UserManagementPage() {
     setFilterRole(role);
     // Set default verification filter based on role
     if (role === 'serviceProvider') {
-      setFilterVerified('notVerified'); // Default to not verified for service providers
+      setFilterVerified('all'); // Show all service providers
     } else {
       setFilterVerified('all'); // Reset verification filter for other roles
     }
@@ -148,7 +178,7 @@ function UserManagementPage() {
   // Update user details
   const updateUser = async (userId, updatedData) => {
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/details`, {
         method: 'PUT',
@@ -180,7 +210,7 @@ function UserManagementPage() {
   // Toggle user active/inactive status
   const toggleUserStatus = async (userId, currentStatus) => {
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/status`, {
         method: 'PUT',
@@ -215,7 +245,7 @@ function UserManagementPage() {
     }
     
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
         method: 'DELETE',
@@ -243,7 +273,7 @@ function UserManagementPage() {
   // Verify service provider
   const verifyServiceProvider = async (userId) => {
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/verify`, {
         method: 'PUT',
@@ -490,6 +520,34 @@ function UserManagementPage() {
     }, 3000);
   };
 
+  if (authLoading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading user management...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Notifications Container */}
@@ -568,8 +626,9 @@ function UserManagementPage() {
                   value={filterVerified}
                   onChange={(e) => handleVerificationFilterChange(e.target.value)}
                 >
-                  <option value="notVerified">Not Verified</option>
+                  <option value="all">All Status</option>
                   <option value="verified">Verified</option>
+                  <option value="notVerified">Not Verified</option>
                 </select>
               </div>
             )}

@@ -1,7 +1,12 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import LoginPrompt from "./LoginPrompt";
+import { useAuth, isPetOwner } from "../contexts/AuthContext";
 
 const ProductCard = ({ product, onAdd }) => {
+  const { user } = useAuth();
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   console.log("ProductCard received product:", product);
   
   // Handle add to cart click
@@ -13,57 +18,79 @@ const ProductCard = ({ product, onAdd }) => {
       return;
     }
 
+    // Check if user is logged in as pet owner
+    if (!isPetOwner(user)) {
+      setShowLoginPrompt(true);
+      return;
+    }
+
     if (!onAdd) {
       console.warn("onAdd function not provided");
       return;
     }
 
+    // Pass the correct product ID to the addToCart function
     onAdd(product);
   };
 
   return (
-    <div className="bg-white shadow-md rounded-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer border border-[#1E40AF]/20">
-      <img
-        src={product.pImage || product.image || "https://via.placeholder.com/150"}
-        alt={product.pName || "Product"}
-        className="w-full h-48 object-cover"
-      />
+    <>
+      <div className="bg-white shadow-md rounded-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer border border-[#1E40AF]/20">
+        <img
+          src={product.pImage || product.image || "https://via.placeholder.com/150"}
+          alt={product.pName || "Product"}
+          className="w-full h-48 object-cover"
+        />
 
-      <div className="p-4">
-        <h2 className="font-bold text-lg mb-2 text-[#1E40AF]">
-          {product.pName || "Unnamed Product"}
-        </h2>
-        <p className="text-gray-600 text-sm mb-2">
-          {product.pdescription || product.pDescription || "No description available"}
-        </p>
-        <p className="font-semibold text-[#F97316] mb-2">
-          Rs. {product.pPrice ?? 0}
-        </p>
-        <p className="text-gray-500 text-sm mb-4">
-          Available stocks: {product.pQuantity ?? 0}
-        </p>
+        <div className="p-4">
+          <h2 className="font-bold text-lg mb-2 text-[#1E40AF]">
+            {product.pName || "Unnamed Product"}
+          </h2>
+          <p className="text-gray-600 text-sm mb-2">
+            {product.pdescription || product.pDescription || "No description available"}
+          </p>
+          <p className="font-semibold text-[#F97316] mb-2">
+            Rs. {product.pPrice ?? 0}
+          </p>
+          <p className="text-gray-500 text-sm mb-4">
+            Available stocks: {product.pQuantity ?? 0}
+          </p>
 
-        <div className="flex flex-col gap-2">
-          {/* View Product Button */}
-          <Link
-            to={`/products/${product.productID ?? ""}`}
-            className="bg-[#1E40AF] text-white px-4 py-2 rounded-md hover:bg-[#F97316] transition text-center"
-          >
-            View Details
-          </Link>
+          <div className="flex flex-col gap-2">
+            {/* View Product Button */}
+            <Link
+              to={`/products/${product.productID ?? product.id ?? ""}`}
+              className="bg-[#1E40AF] text-white px-4 py-2 rounded-md hover:bg-[#F97316] transition text-center"
+            >
+              View Details
+            </Link>
 
-          {/* Add to Cart Button */}
-          <button
-            onClick={handleAdd}
-            aria-disabled={(Number(product?.pQuantity) || 0) === 0}
-            title={(Number(product?.pQuantity) || 0) === 0 ? "There's no stock left" : "Add to Cart"}
-            className="bg-[#1E40AF] text-white px-4 py-2 rounded-md hover:bg-[#F97316] transition"
-          >
-            Add to Cart
-          </button>
+            {/* Add to Cart Button */}
+            <button
+              onClick={handleAdd}
+              disabled={!isPetOwner(user) || (Number(product?.pQuantity) || 0) === 0}
+              title={(Number(product?.pQuantity) || 0) === 0 ? "There's no stock left" : 
+                     !isPetOwner(user) ? "Login as pet owner to add to cart" : "Add to Cart"}
+              className={`px-4 py-2 rounded-md transition ${
+                !isPetOwner(user) || (Number(product?.pQuantity) || 0) === 0
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-[#1E40AF] text-white hover:bg-[#F97316]"
+              }`}
+            >
+              Add to Cart
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Login Prompt Modal */}
+      {showLoginPrompt && (
+        <LoginPrompt 
+          message="You need to be logged in as a pet owner to add items to your cart."
+          onDismiss={() => setShowLoginPrompt(false)}
+        />
+      )}
+    </>
   );
 };
 

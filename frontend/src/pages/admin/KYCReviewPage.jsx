@@ -10,10 +10,11 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 
 // Simple KYC Review Page for beginners
 function KYCReviewPage() {
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
   
   // State for KYC requests and UI
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -34,15 +35,41 @@ function KYCReviewPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Fetch pending KYC requests
-  const fetchPendingRequests = async () => {
+  const fetchPendingRequests = async (page = 1) => {
     try {
+      if (authLoading) return; // Wait for auth to load
+      // Check if user is authenticated and is an admin
+      if (!currentUser || currentUser.role !== 'admin') return;
+      
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/auth/users?${params}`, {
+      setError(null);
+      
+      // Get Firebase ID token for authentication
+      const token = await getIdToken();
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', page);
+      queryParams.append('limit', 10);
+      queryParams.append('role', 'serviceProvider');
+      
+      // For pending requests, we want unverified or rejected providers
+      if (filterStatus === 'pending') {
+        queryParams.append('verified', 'false');
+      } else if (filterStatus === 'approved') {
+        queryParams.append('verified', 'true');
+      }
+      
+      if (searchTerm) {
+        queryParams.append('search', searchTerm);
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/auth/users?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        }
       });
 
       if (!response.ok) {
@@ -51,7 +78,7 @@ function KYCReviewPage() {
 
       const data = await response.json();
       setPendingRequests(data.users || []);
-      setTotalPages(data.totalPages || 1);
+      setTotalPages(data.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching pending requests:', error);
       setError('Failed to fetch pending KYC requests. Please try again later.');
@@ -62,10 +89,12 @@ function KYCReviewPage() {
 
   // Load pending KYC requests on component mount
   useEffect(() => {
-    if (currentUser) {
-      fetchPendingRequests();
+    if (authLoading) return; // Wait for auth to load
+    // Check if user is authenticated and is an admin
+    if (currentUser && currentUser.role === 'admin') {
+      fetchPendingRequests(currentPage);
     }
-  }, [currentUser]);
+  }, [currentUser, filterStatus, currentPage, authLoading, searchTerm]);
 
   // Handle search term change with validation
   const handleSearchChange = (e) => {
@@ -73,6 +102,13 @@ function KYCReviewPage() {
     // Allow only letters and numbers
     if (/^[a-zA-Z0-9]*$/.test(value) || value === '') {
       setSearchTerm(value);
+    }
+  };
+
+  // Handle pagination
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
     }
   };
 
@@ -116,7 +152,7 @@ function KYCReviewPage() {
       }
       
       // Refresh service providers
-      fetchKYCRequests();
+      fetchPendingRequests(currentPage);
       
       showNotification('Service provider approved successfully!');
       
@@ -128,8 +164,6 @@ function KYCReviewPage() {
 
   // Show reject modal with reason input
   const showRejectModalWithReason = (request) => {
-    console.log('Showing reject modal for:', request);
-    console.log('setRejectionReason function:', typeof setRejectionReason);
     setSelectedRequest(request);
     setRejectionReason('');
     setShowRejectModal(true);
@@ -137,10 +171,6 @@ function KYCReviewPage() {
 
   // Reject service provider
   const rejectRequest = async () => {
-    console.log('Rejecting provider with reason:', rejectionReason);
-    console.log('Selected request:', selectedRequest);
-    console.log('setRejectionReason function:', typeof setRejectionReason);
-    
     if (!rejectionReason.trim()) {
       showNotification('Please provide a rejection reason', 'error');
       return;
@@ -157,6 +187,7 @@ function KYCReviewPage() {
         },
         body: JSON.stringify({
           isVerified: false,
+          isRejected: true,
           rejectionReason: rejectionReason
         }),
       });
@@ -167,7 +198,7 @@ function KYCReviewPage() {
       }
       
       // Refresh service providers
-      fetchKYCRequests();
+      fetchPendingRequests(currentPage);
       
       // Close modal
       setShowRejectModal(false);
@@ -256,10 +287,10 @@ function KYCReviewPage() {
       doc.text(filterText, 148.5, 53, null, null, 'center');
       
       // Add summary statistics with better visual presentation
-      const totalRequests = kycRequests.length;
-      const pendingRequests = kycRequests.filter(r => !r.verification?.isVerified && !r.verification?.isRejected).length;
-      const verifiedRequests = kycRequests.filter(r => r.verification?.isVerified && !r.verification?.isRejected).length;
-      const rejectedRequests = kycRequests.filter(r => r.verification?.isRejected).length;
+      const totalRequests = pendingRequests.length;
+      const pendingRequestsCount = pendingRequests.filter(r => !r.verification?.isVerified && !r.verification?.isRejected).length;
+      const verifiedRequests = pendingRequests.filter(r => r.verification?.isVerified && !r.verification?.isRejected).length;
+      const rejectedRequests = pendingRequests.filter(r => r.verification?.isRejected).length;
       
       // Add a line separator
       doc.setDrawColor(30, 64, 175);
@@ -278,7 +309,7 @@ function KYCReviewPage() {
       doc.setFillColor(255, 193, 7);
       doc.roundedRect(87, 64, 65, 25, 2, 2, 'F');
       doc.setTextColor(0, 0, 0);
-      doc.text(`Pending: ${pendingRequests}`, 119.5, 79, null, null, 'center');
+      doc.text(`Pending: ${pendingRequestsCount}`, 119.5, 79, null, null, 'center');
       
       doc.setFillColor(40, 167, 69);
       doc.roundedRect(154, 64, 65, 25, 2, 2, 'F');
@@ -350,6 +381,34 @@ function KYCReviewPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading KYC review...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Notifications Container */}
@@ -392,7 +451,7 @@ function KYCReviewPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <p className="text-red-800">Error: {error}</p>
           <button 
-            onClick={fetchKYCRequests}
+            onClick={() => fetchPendingRequests(currentPage)}
             className="mt-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
           >
             Retry
@@ -519,7 +578,6 @@ function KYCReviewPage() {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    console.log('Reject button clicked for request:', request);
                                     showRejectModalWithReason(request);
                                   }}
                                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
@@ -548,6 +606,39 @@ function KYCReviewPage() {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="bg-white px-6 py-3 flex items-center justify-between border-t border-gray-200">
+              <div className="text-sm text-gray-700">
+                Showing page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    currentPage === totalPages 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -692,7 +783,6 @@ function KYCReviewPage() {
                   </button>
                   <button
                     onClick={() => {
-                      console.log('Reject button clicked in modal for request:', selectedRequest);
                       setShowViewModal(false);
                       showRejectModalWithReason(selectedRequest);
                     }}
@@ -746,8 +836,6 @@ function KYCReviewPage() {
                 placeholder="Enter reason for rejection..."
                 value={rejectionReason}
                 onChange={(e) => {
-                  console.log('Reason changed to:', e.target.value);
-                  console.log('setRejectionReason function:', typeof setRejectionReason);
                   setRejectionReason(e.target.value);
                 }}
               />
@@ -762,8 +850,6 @@ function KYCReviewPage() {
               </button>
               <button
                 onClick={() => {
-                  console.log('Cancel button clicked');
-                  console.log('setRejectionReason function:', typeof setRejectionReason);
                   setShowRejectModal(false);
                   setSelectedRequest(null);
                   setRejectionReason('');

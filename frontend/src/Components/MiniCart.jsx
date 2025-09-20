@@ -1,15 +1,32 @@
 import React, { useContext } from "react";
 import { CartContext } from "../contexts/CartContext";
 import { Link } from "react-router-dom";
+import { useAuth, isPetOwner } from "../contexts/AuthContext";
 
 const MiniCart = () => {
   const { cart, subtotal } = useContext(CartContext);
+  const { user } = useAuth();
 
-  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  console.log("MiniCart - Cart data:", cart); // Debug log
+  console.log("MiniCart - Subtotal:", subtotal); // Debug log
+
+  const totalItems = cart.reduce((acc, item) => acc + (item.quantity || 0), 0);
+
+  // Check if user is logged in as pet owner
+  const isLoggedInPetOwner = user && isPetOwner(user);
+
+  const handleClick = (e) => {
+    // If not logged in as pet owner, prevent navigation and show message
+    if (!isLoggedInPetOwner) {
+      e.preventDefault();
+      alert("You need to be logged in as a pet owner to view the cart!");
+    }
+  };
 
   return (
     <Link 
       to="/cart" 
+      onClick={handleClick}
       className="flex items-center space-x-2 bg-[#F97316] hover:bg-[#ea580c] px-3 py-2 rounded-lg transition-all duration-300 shadow-md"
     >
       <svg 
@@ -28,9 +45,15 @@ const MiniCart = () => {
       </svg>
       <div className="flex flex-col">
         <span className="text-white text-sm font-semibold">Cart</span>
-        <span className="text-white text-xs">
-          {totalItems} item{totalItems !== 1 ? 's' : ''} - Rs.{subtotal.toFixed(2)}
-        </span>
+        {isLoggedInPetOwner ? (
+          <span className="text-white text-xs">
+            {totalItems} item{totalItems !== 1 ? 's' : ''} - Rs.{subtotal?.toFixed(2) || '0.00'}
+          </span>
+        ) : (
+          <span className="text-white text-xs">
+            Login to view cart
+          </span>
+        )}
       </div>
     </Link>
   );

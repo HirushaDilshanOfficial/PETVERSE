@@ -10,10 +10,11 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 
 // Simple Inventory Management Page with Real API Integration
 function InventoryPage() {
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
   
   // State for products and UI
   const [products, setProducts] = useState([]);
@@ -81,13 +82,22 @@ function InventoryPage() {
   // Fetch products from backend
   const fetchProducts = async () => {
     try {
+      if (authLoading) return; // Wait for auth to load
+      // Check if user is authenticated and is an admin
+      if (!currentUser || currentUser.role !== 'admin') return;
+      
       setLoading(true);
+      setError(null);
+      
+      // Get Firebase ID token for authentication
+      const token = await getIdToken();
+      
       const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        }
       });
 
       if (!response.ok) {
@@ -106,10 +116,12 @@ function InventoryPage() {
 
   // Load products on component mount
   useEffect(() => {
-    if (currentUser) {
+    if (authLoading) return; // Wait for auth to load
+    // Check if user is authenticated and is an admin
+    if (currentUser && currentUser.role === 'admin') {
       fetchProducts();
     }
-  }, [currentUser]);
+  }, [currentUser, authLoading]);
 
   // Filter products based on search term
   const filteredProducts = products.filter(product => {
@@ -198,86 +210,44 @@ function InventoryPage() {
     }
   };
   
-  // Handle image file change
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      // Preview image
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNewProduct({
-          ...newProduct,
-          pImage: e.target.result
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-  
-  // Handle edit image file change
-  const handleEditImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setEditImageFile(file);
-      // Preview image
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNewProduct({
-          ...newProduct,
-          pImage: e.target.result
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Add new product
-  const addProduct = async (e) => {
-    e.preventDefault();
-    
-    // Validate form
+  // Validate form data
+  const validateForm = () => {
     const errors = {};
     
-    if (!newProduct.productID) {
+    if (!newProduct.productID.trim()) {
       errors.productID = 'Product ID is required';
-    } else if (!/^[a-zA-Z0-9]+$/.test(newProduct.productID)) {
-      errors.productID = 'Product ID can only contain letters and numbers';
     }
     
-    if (!newProduct.pName) {
-      errors.pName = 'Product Name is required';
-    } else if (!/^[a-zA-Z0-9\s]+$/.test(newProduct.pName)) {
-      errors.pName = 'Product Name can only contain letters, numbers, and spaces';
-    }
-    
-    if (!newProduct.pDescription) {
-      errors.pDescription = 'Product Description is required';
+    if (!newProduct.pName.trim()) {
+      errors.pName = 'Product name is required';
     }
     
     if (!newProduct.pCategory) {
-      errors.pCategory = 'Product Category is required';
+      errors.pCategory = 'Category is required';
     }
     
-    if (!newProduct.pPrice) {
-      errors.pPrice = 'Product Price is required';
-    } else if (isNaN(newProduct.pPrice) || parseFloat(newProduct.pPrice) <= 0) {
-      errors.pPrice = 'Price must be a positive number';
+    if (!newProduct.pPrice || newProduct.pPrice <= 0) {
+      errors.pPrice = 'Valid price is required';
     }
     
-    if (!newProduct.pQuantity) {
-      errors.pQuantity = 'Product Quantity is required';
-    } else if (isNaN(newProduct.pQuantity) || parseInt(newProduct.pQuantity) < 0) {
-      errors.pQuantity = 'Quantity must be a non-negative number';
+    if (!newProduct.pQuantity || newProduct.pQuantity < 0) {
+      errors.pQuantity = 'Valid quantity is required';
     }
     
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Handle adding a new product
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
     
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       // Prepare form data
       const formData = new FormData();
@@ -285,16 +255,13 @@ function InventoryPage() {
       formData.append('pName', newProduct.pName);
       formData.append('pDescription', newProduct.pDescription);
       formData.append('pCategory', newProduct.pCategory);
-      formData.append('pPrice', parseFloat(newProduct.pPrice));
-      formData.append('pQuantity', parseInt(newProduct.pQuantity));
+      formData.append('pPrice', newProduct.pPrice);
+      formData.append('pQuantity', newProduct.pQuantity);
       formData.append('status', newProduct.status);
       
-      // Add image file if provided
+      // Add image if available
       if (imageFile) {
-        formData.append('file', imageFile);
-      } else if (newProduct.pImage) {
-        // If no file but URL provided, send the URL
-        formData.append('pImage', newProduct.pImage);
+        formData.append('pImage', imageFile);
       }
       
       const response = await fetch(`${API_BASE_URL}/products`, {
@@ -310,7 +277,7 @@ function InventoryPage() {
         throw new Error(errorData.message || 'Failed to add product');
       }
       
-      // Reset form and close modal
+      // Reset form
       setNewProduct({
         productID: '',
         pName: '',
@@ -321,111 +288,29 @@ function InventoryPage() {
         pImage: '',
         status: 'Active'
       });
-      setFormErrors({});
       setImageFile(null);
       setShowAddModal(false);
       
       // Refresh products list
       fetchProducts();
       
-      // Show success notification
-      showNotification('Product added successfully!', 'success');
-      
+      showNotification('Product added successfully!');
     } catch (err) {
       console.error('Error adding product:', err);
       showNotification(`Error: ${err.message}`, 'error');
     }
   };
-
-  // Delete product
-  const deleteProduct = async (productId, productName) => {
-    if (window.confirm(`Are you sure you want to delete "${productName}"?`)) {
-      try {
-        const token = await currentUser.getIdToken();
-        
-        const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to delete product');
-        }
-        
-        // Refresh products list
-        fetchProducts();
-        
-        // Show success notification
-        showNotification('Product deleted successfully!', 'success');
-        
-      } catch (err) {
-        console.error('Error deleting product:', err);
-        showNotification(`Error: ${err.message}`, 'error');
-      }
-    }
-  };
-
-  // Edit product
-  const editProduct = (product) => {
-    setSelectedProduct(product);
-    setNewProduct({
-      productID: product.productID,
-      pName: product.pName,
-      pDescription: product.pDescription,
-      pCategory: product.pCategory,
-      pPrice: product.pPrice.toString(),
-      pQuantity: product.pQuantity.toString(),
-      pImage: product.pImage || '',
-      status: product.status
-    });
-    setEditImageFile(null);
-    setShowEditModal(true);
-  };
-
-  // Update product
-  const updateProduct = async (e) => {
+  
+  // Handle editing a product
+  const handleEditProduct = async (e) => {
     e.preventDefault();
     
-    // Validate form (similar to addProduct but without productID validation since it's read-only)
-    const errors = {};
-    
-    if (!newProduct.pName) {
-      errors.pName = 'Product Name is required';
-    } else if (!/^[a-zA-Z0-9\s]+$/.test(newProduct.pName)) {
-      errors.pName = 'Product Name can only contain letters, numbers, and spaces';
-    }
-    
-    if (!newProduct.pDescription) {
-      errors.pDescription = 'Product Description is required';
-    }
-    
-    if (!newProduct.pCategory) {
-      errors.pCategory = 'Product Category is required';
-    }
-    
-    if (!newProduct.pPrice) {
-      errors.pPrice = 'Product Price is required';
-    } else if (isNaN(newProduct.pPrice) || parseFloat(newProduct.pPrice) <= 0) {
-      errors.pPrice = 'Price must be a positive number';
-    }
-    
-    if (!newProduct.pQuantity) {
-      errors.pQuantity = 'Product Quantity is required';
-    } else if (isNaN(newProduct.pQuantity) || parseInt(newProduct.pQuantity) < 0) {
-      errors.pQuantity = 'Quantity must be a non-negative number';
-    }
-    
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+    if (!validateForm()) {
       return;
     }
     
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       // Prepare form data
       const formData = new FormData();
@@ -433,16 +318,13 @@ function InventoryPage() {
       formData.append('pName', newProduct.pName);
       formData.append('pDescription', newProduct.pDescription);
       formData.append('pCategory', newProduct.pCategory);
-      formData.append('pPrice', parseFloat(newProduct.pPrice));
-      formData.append('pQuantity', parseInt(newProduct.pQuantity));
+      formData.append('pPrice', newProduct.pPrice);
+      formData.append('pQuantity', newProduct.pQuantity);
       formData.append('status', newProduct.status);
       
-      // Add image file if provided
+      // Add image if available
       if (editImageFile) {
-        formData.append('file', editImageFile);
-      } else if (newProduct.pImage && newProduct.pImage.startsWith('http')) {
-        // If no file but URL provided, send the URL
-        formData.append('pImage', newProduct.pImage);
+        formData.append('pImage', editImageFile);
       }
       
       const response = await fetch(`${API_BASE_URL}/products/${selectedProduct.productID}`, {
@@ -458,7 +340,7 @@ function InventoryPage() {
         throw new Error(errorData.message || 'Failed to update product');
       }
       
-      // Reset form and close modal
+      // Reset form
       setNewProduct({
         productID: '',
         pName: '',
@@ -469,72 +351,68 @@ function InventoryPage() {
         pImage: '',
         status: 'Active'
       });
-      setFormErrors({});
       setEditImageFile(null);
       setShowEditModal(false);
+      setSelectedProduct(null);
       
       // Refresh products list
       fetchProducts();
       
-      // Show success notification
-      showNotification('Product updated successfully!', 'success');
-      
+      showNotification('Product updated successfully!');
     } catch (err) {
       console.error('Error updating product:', err);
       showNotification(`Error: ${err.message}`, 'error');
     }
   };
-
-  // Toggle product status (Active/Inactive)
-  const toggleProductStatus = async (productId, currentStatus) => {
+  
+  // Handle deleting a product
+  const handleDeleteProduct = async (productId, productName) => {
+    if (!window.confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
+      return;
+    }
+    
     try {
-      const token = await currentUser.getIdToken();
-      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      const token = await getIdToken();
       
-      const response = await fetch(`${API_BASE_URL}/products/${productId}/status`, {
-        method: 'PUT',
+      const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: newStatus }),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to toggle product status');
+        throw new Error(errorData.message || 'Failed to delete product');
       }
       
       // Refresh products list
       fetchProducts();
       
-      showNotification(`Product ${newStatus.toLowerCase()} successfully!`, 'success');
-      
+      showNotification('Product deleted successfully!');
     } catch (err) {
-      console.error('Error toggling product status:', err);
+      console.error('Error deleting product:', err);
       showNotification(`Error: ${err.message}`, 'error');
     }
   };
-
-  // Get status badge
-  const getStatusBadge = (status) => {
-    if (status === 'Active') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          <CheckCircleIcon className="h-3 w-3 mr-1" />
-          Active
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-          <XCircleIcon className="h-3 w-3 mr-1" />
-          Inactive
-        </span>
-      );
-    }
+  
+  // Open edit modal with product data
+  const openEditModal = (product) => {
+    setSelectedProduct(product);
+    setNewProduct({
+      productID: product.productID || '',
+      pName: product.pName || '',
+      pDescription: product.pDescription || '',
+      pCategory: product.pCategory || '',
+      pPrice: product.pPrice || '',
+      pQuantity: product.pQuantity || '',
+      pImage: product.pImage || '',
+      status: product.status || 'Active'
+    });
+    setShowEditModal(true);
   };
-
+  
   // Export inventory data to PDF
   const exportToPDF = async () => {
     try {
@@ -554,7 +432,7 @@ function InventoryPage() {
       doc.setFontSize(18);
       doc.setTextColor(0, 0, 0);
       doc.setFont(undefined, 'normal');
-      doc.text('Inventory Management Report', 148.5, 25, null, null, 'center');
+      doc.text('Inventory Report', 148.5, 25, null, null, 'center');
       
       // Add business information with better styling
       doc.setFontSize(12);
@@ -562,7 +440,7 @@ function InventoryPage() {
       doc.text('New Kandy Road, Malabe • Tel: 0912345673', 148.5, 33, null, null, 'center');
       doc.text('www.petverse.com • hello@petverse.com', 148.5, 39, null, null, 'center');
       
-      // Add date with better formatting
+      // Add date information with better formatting
       const date = new Date().toLocaleDateString();
       const time = new Date().toLocaleTimeString();
       doc.setFontSize(11);
@@ -570,9 +448,10 @@ function InventoryPage() {
       doc.text(`Generated on: ${date} at ${time}`, 148.5, 47, null, null, 'center');
       
       // Add summary statistics with better visual presentation
-      const totalProducts = filteredProducts.length;
-      const activeProducts = filteredProducts.filter(p => p.status === 'Active').length;
-      const lowStockProducts = filteredProducts.filter(p => isLowStock(p.pQuantity)).length;
+      const totalProducts = products.length;
+      const lowStockProducts = products.filter(p => isLowStock(p.pQuantity)).length;
+      const outOfStockProducts = products.filter(p => p.pQuantity === 0).length;
+      const activeProducts = products.filter(p => p.status === 'Active').length;
       
       // Add a line separator
       doc.setDrawColor(30, 64, 175);
@@ -585,30 +464,36 @@ function InventoryPage() {
       
       // Background boxes for statistics
       doc.setFillColor(30, 64, 175);
-      doc.roundedRect(20, 58, 85, 25, 2, 2, 'F');
-      doc.text(`Total Products: ${totalProducts}`, 62.5, 73, null, null, 'center');
+      doc.roundedRect(20, 58, 65, 25, 2, 2, 'F');
+      doc.text(`Total: ${totalProducts}`, 52.5, 73, null, null, 'center');
       
-      doc.setFillColor(40, 167, 69);
-      doc.roundedRect(107, 58, 85, 25, 2, 2, 'F');
-      doc.text(`Active: ${activeProducts}`, 149.5, 73, null, null, 'center');
+      doc.setFillColor(255, 193, 7);
+      doc.roundedRect(87, 58, 65, 25, 2, 2, 'F');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Low Stock: ${lowStockProducts}`, 119.5, 73, null, null, 'center');
       
       doc.setFillColor(220, 53, 69);
-      doc.roundedRect(194, 58, 85, 25, 2, 2, 'F');
-      doc.text(`Low Stock: ${lowStockProducts}`, 236.5, 73, null, null, 'center');
+      doc.roundedRect(154, 58, 65, 25, 2, 2, 'F');
+      doc.text(`Out of Stock: ${outOfStockProducts}`, 186.5, 73, null, null, 'center');
+      
+      doc.setFillColor(40, 167, 69);
+      doc.roundedRect(221, 58, 65, 25, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(`Active: ${activeProducts}`, 253.5, 73, null, null, 'center');
       
       // Prepare table data with better formatting
       const tableData = filteredProducts.map(product => [
-        product.productID,
-        product.pName,
-        product.pCategory,
-        product.pQuantity,
-        `$${parseFloat(product.pPrice).toFixed(2)}`,
-        product.status
+        product.productID || 'N/A',
+        product.pName || 'N/A',
+        product.pCategory || 'N/A',
+        `$${product.pPrice ? parseFloat(product.pPrice).toFixed(2) : '0.00'}`,
+        product.pQuantity?.toString() || '0',
+        product.status || 'N/A'
       ]);
       
       // Add table with enhanced styling
       autoTable(doc, {
-        head: [['Product ID', 'Name', 'Category', 'Quantity', 'Price', 'Status']],
+        head: [['Product ID', 'Name', 'Category', 'Price', 'Quantity', 'Status']],
         body: tableData,
         startY: 90,
         styles: {
@@ -627,17 +512,7 @@ function InventoryPage() {
           fillColor: [248, 249, 250]
         },
         pageBreak: 'auto',
-        margin: { top: 90, bottom: 30 },
-        didDrawCell: (data) => {
-          // Add visual indicator for low stock items
-          if (data.column.index === 3 && data.cell.raw < 5) {
-            doc.setTextColor(220, 53, 69);
-            doc.setFont(undefined, 'bold');
-          } else {
-            doc.setTextColor(0, 0, 0);
-            doc.setFont(undefined, 'normal');
-          }
-        }
+        margin: { top: 90, bottom: 30 }
       });
       
       // Add footer with page numbers
@@ -654,7 +529,7 @@ function InventoryPage() {
       const fileName = `petverse-inventory-${date.replace(/\//g, '-')}.pdf`;
       doc.setProperties({
         title: 'PETVERSE Inventory Report',
-        subject: 'Inventory Management Report',
+        subject: 'Inventory Report',
         author: 'PETVERSE Admin System',
         keywords: 'inventory, products, stock, pet, petverse'
       });
@@ -666,6 +541,34 @@ function InventoryPage() {
       showNotification('Failed to export PDF. Please try again.', 'error');
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading inventory...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -693,7 +596,7 @@ function InventoryPage() {
       {/* Page Title */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Inventory Management</h1>
-        <p className="text-gray-600 mt-2">Manage pet store products and stock levels</p>
+        <p className="text-gray-600 mt-2">Manage your product inventory</p>
       </div>
 
       {/* Loading State */}
@@ -717,39 +620,18 @@ function InventoryPage() {
         </div>
       )}
 
-      {/* Low Stock Alerts */}
-      {!loading && !error && (
-        <div className="mb-6">
-          {filteredProducts.filter(product => isLowStock(product.pQuantity)).length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 mr-2" />
-                <h3 className="text-red-800 font-medium">Low Stock Alert</h3>
-              </div>
-              <div className="mt-2 text-red-700">
-                {filteredProducts.filter(product => isLowStock(product.pQuantity)).map(product => (
-                  <span key={product._id} className="inline-block bg-red-100 px-2 py-1 rounded mr-2 mb-1 text-sm">
-                    {product.pName} ({product.pQuantity} left)
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Search and Filter Section */}
+      {/* Search and Actions Section */}
       {!loading && !error && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* Search Box */}
             <div className="flex-1">
               <div className="relative">
                 <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by product name, ID, or category (letters and numbers only)..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  placeholder="Search by product ID, name, or category (letters and numbers only)..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   value={searchTerm}
                   onChange={handleSearchChange}
                 />
@@ -766,7 +648,21 @@ function InventoryPage() {
                 Export PDF
               </button>
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setNewProduct({
+                    productID: '',
+                    pName: '',
+                    pDescription: '',
+                    pCategory: '',
+                    pPrice: '',
+                    pQuantity: '',
+                    pImage: '',
+                    status: 'Active'
+                  });
+                  setImageFile(null);
+                  setFormErrors({});
+                  setShowAddModal(true);
+                }}
                 className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
               >
                 <PlusIcon className="h-5 w-5" />
@@ -784,25 +680,22 @@ function InventoryPage() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Product ID
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Product Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Quantity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Price
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quantity
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -810,57 +703,75 @@ function InventoryPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                      No products found. Add your first product!
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      No products found matching your search criteria.
                     </td>
                   </tr>
                 ) : (
                   filteredProducts.map((product) => (
                     <tr key={product._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {product.productID}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10">
+                            {product.pImage ? (
+                              <img className="h-10 w-10 rounded-md object-cover" src={product.pImage} alt={product.pName} />
+                            ) : (
+                              <div className="h-10 w-10 rounded-md bg-gray-200 flex items-center justify-center">
+                                <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{product.pName}</div>
+                            <div className="text-sm text-gray-500">{product.productID}</div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{product.pName}</div>
-                        <div className="text-sm text-gray-500">{product.pDescription}</div>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{product.pCategory}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                          {product.pCategory}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">${product.pPrice ? parseFloat(product.pPrice).toFixed(2) : '0.00'}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`text-sm font-medium ${
-                          isLowStock(product.pQuantity) ? 'text-red-600' : 'text-gray-900'
-                        }`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`text-sm ${isLowStock(product.pQuantity) ? 'text-red-600 font-bold' : 'text-gray-900'}`}>
                           {product.pQuantity}
-                          {isLowStock(product.pQuantity) && (
-                            <ExclamationTriangleIcon className="h-4 w-4 inline ml-1 text-red-500" />
+                          {isLowStock(product.pQuantity) && product.pQuantity > 0 && (
+                            <div className="flex items-center mt-1">
+                              <ExclamationTriangleIcon className="h-4 w-4 text-yellow-500 mr-1" />
+                              <span className="text-xs text-yellow-600">Low stock</span>
+                            </div>
                           )}
+                          {product.pQuantity === 0 && (
+                            <div className="flex items-center mt-1">
+                              <XCircleIcon className="h-4 w-4 text-red-500 mr-1" />
+                              <span className="text-xs text-red-600">Out of stock</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          product.status === 'Active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        ${product.pPrice}
-                      </td>
-                      <td className="px-6 py-4">
-                        <button 
-                          onClick={() => toggleProductStatus(product.productID, product.status)}
-                          className="cursor-pointer"
-                        >
-                          {getStatusBadge(product.status)}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => editProduct(product)}
+                            onClick={() => openEditModal(product)}
                             className="text-blue-600 hover:text-blue-900"
                             title="Edit Product"
                           >
                             <PencilIcon className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => deleteProduct(product.productID, product.pName)}
+                            onClick={() => handleDeleteProduct(product.productID, product.pName)}
                             className="text-red-600 hover:text-red-900"
                             title="Delete Product"
                           >
@@ -882,78 +793,81 @@ function InventoryPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Product</h3>
-            <form onSubmit={addProduct}>
+            
+            <form onSubmit={handleAddProduct}>
               <div className="space-y-4">
+                {/* Product ID */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product ID *
+                  </label>
                   <input
                     type="text"
                     name="productID"
-                    placeholder="Product ID (letters and numbers only)"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.productID ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.productID}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.productID ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="Enter product ID (letters and numbers only)"
                   />
                   {formErrors.productID && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.productID}</p>
                   )}
                 </div>
                 
+                {/* Product Name */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Name *
+                  </label>
                   <input
                     type="text"
                     name="pName"
-                    placeholder="Product Name (letters and numbers only)"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pName ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pName}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pName ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="Enter product name"
                   />
                   {formErrors.pName && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pName}</p>
                   )}
                 </div>
                 
+                {/* Description */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
                   <textarea
                     name="pDescription"
-                    placeholder="Product Description"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pDescription ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pDescription}
                     onChange={handleInputChange}
-                    required
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                    placeholder="Enter product description"
+                    rows="3"
                   />
-                  {formErrors.pDescription && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.pDescription}</p>
-                  )}
                 </div>
                 
+                {/* Category */}
                 <div>
-                  <div className="flex">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category *
+                  </label>
+                  <div className="flex gap-2">
                     <select
                       name="pCategory"
-                      className={`flex-1 px-3 py-2 border rounded-l-lg focus:ring-2 focus:ring-orange-500 ${
-                        formErrors.pCategory ? 'border-red-500' : 'border-gray-300'
-                      }`}
                       value={newProduct.pCategory}
                       onChange={handleInputChange}
-                      required
+                      className={`flex-1 border ${formErrors.pCategory ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
                     >
                       <option value="">Select a category</option>
-                      {categories.map(category => (
+                      {categories.map((category) => (
                         <option key={category} value={category}>{category}</option>
                       ))}
                     </select>
                     <button
                       type="button"
                       onClick={openAddCategoryModal}
-                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded-r-lg hover:bg-gray-300 focus:outline-none"
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 rounded-lg"
                       title="Add new category"
                     >
                       +
@@ -964,84 +878,75 @@ function InventoryPage() {
                   )}
                 </div>
                 
+                {/* Price */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price ($) *
+                  </label>
                   <input
                     type="number"
                     name="pPrice"
-                    placeholder="Price"
-                    step="0.01"
-                    min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pPrice ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pPrice}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pPrice ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
                   />
                   {formErrors.pPrice && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pPrice}</p>
                   )}
                 </div>
                 
+                {/* Quantity */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Quantity *
+                  </label>
                   <input
-                    type="text"
+                    type="number"
                     name="pQuantity"
-                    placeholder="Quantity (numbers only)"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pQuantity ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pQuantity}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pQuantity ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="0"
+                    min="0"
                   />
                   {formErrors.pQuantity && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pQuantity}</p>
                   )}
                 </div>
                 
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    name="status"
+                    value={newProduct.status}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                
                 {/* Image Upload */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Product Image
                   </label>
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={handleImageChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                    className="w-full border border-gray-300 rounded-lg p-2"
                   />
-                  {newProduct.pImage && (
-                    <div className="mt-2">
-                      <img 
-                        src={newProduct.pImage} 
-                        alt="Preview" 
-                        className="h-24 w-24 object-cover rounded-lg"
-                      />
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Or enter image URL below
-                  </p>
                 </div>
-                <input
-                  type="text"
-                  name="pImage"
-                  placeholder="Image URL (optional if uploading file)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  value={newProduct.pImage && !newProduct.pImage.startsWith('data:') ? newProduct.pImage : ''}
-                  onChange={handleInputChange}
-                />
-                <select 
-                  name="status"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  value={newProduct.status}
-                  onChange={handleInputChange}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
               </div>
+              
               <div className="mt-6 flex space-x-3">
                 <button
                   type="submit"
@@ -1051,11 +956,7 @@ function InventoryPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setImageFile(null);
-                    setFormErrors({});
-                  }}
+                  onClick={() => setShowAddModal(false)}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
                 >
                   Cancel
@@ -1067,166 +968,164 @@ function InventoryPage() {
       )}
 
       {/* Edit Product Modal */}
-      {showEditModal && (
+      {showEditModal && selectedProduct && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Product</h3>
-            <form onSubmit={updateProduct}>
+            
+            <form onSubmit={handleEditProduct}>
               <div className="space-y-4">
+                {/* Product ID */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product ID *
+                  </label>
                   <input
                     type="text"
                     name="productID"
-                    placeholder="Product ID"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                     value={newProduct.productID}
                     onChange={handleInputChange}
-                    required
-                    readOnly
+                    className={`w-full border ${formErrors.productID ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="Enter product ID (letters and numbers only)"
                   />
+                  {formErrors.productID && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.productID}</p>
+                  )}
                 </div>
                 
+                {/* Product Name */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Name *
+                  </label>
                   <input
                     type="text"
                     name="pName"
-                    placeholder="Product Name"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pName ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pName}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pName ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="Enter product name"
                   />
                   {formErrors.pName && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pName}</p>
                   )}
                 </div>
                 
+                {/* Description */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
                   <textarea
                     name="pDescription"
-                    placeholder="Product Description"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pDescription ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pDescription}
                     onChange={handleInputChange}
-                    required
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                    placeholder="Enter product description"
+                    rows="3"
                   />
-                  {formErrors.pDescription && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.pDescription}</p>
-                  )}
                 </div>
                 
+                {/* Category */}
                 <div>
-                  <div className="flex">
-                    <select
-                      name="pCategory"
-                      className={`flex-1 px-3 py-2 border rounded-l-lg focus:ring-2 focus:ring-orange-500 ${
-                        formErrors.pCategory ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      value={newProduct.pCategory}
-                      onChange={handleInputChange}
-                      required
-                    >
-                      <option value="">Select a category</option>
-                      {categories.map(category => (
-                        <option key={category} value={category}>{category}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={openAddCategoryModal}
-                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded-r-lg hover:bg-gray-300 focus:outline-none"
-                      title="Add new category"
-                    >
-                      +
-                    </button>
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category *
+                  </label>
+                  <select
+                    name="pCategory"
+                    value={newProduct.pCategory}
+                    onChange={handleInputChange}
+                    className={`w-full border ${formErrors.pCategory ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
                   {formErrors.pCategory && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pCategory}</p>
                   )}
                 </div>
                 
+                {/* Price */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price ($) *
+                  </label>
                   <input
                     type="number"
                     name="pPrice"
-                    placeholder="Price"
-                    step="0.01"
-                    min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pPrice ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pPrice}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pPrice ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
                   />
                   {formErrors.pPrice && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pPrice}</p>
                   )}
                 </div>
                 
+                {/* Quantity */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Quantity *
+                  </label>
                   <input
-                    type="text"
+                    type="number"
                     name="pQuantity"
-                    placeholder="Quantity"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 ${
-                      formErrors.pQuantity ? 'border-red-500' : 'border-gray-300'
-                    }`}
                     value={newProduct.pQuantity}
                     onChange={handleInputChange}
-                    required
+                    className={`w-full border ${formErrors.pQuantity ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2`}
+                    placeholder="0"
+                    min="0"
                   />
                   {formErrors.pQuantity && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.pQuantity}</p>
                   )}
                 </div>
                 
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    name="status"
+                    value={newProduct.status}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                
                 {/* Image Upload */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Product Image
                   </label>
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={handleEditImageChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setEditImageFile(e.target.files[0])}
+                    className="w-full border border-gray-300 rounded-lg p-2"
                   />
-                  {newProduct.pImage && (
+                  {selectedProduct.pImage && (
                     <div className="mt-2">
+                      <p className="text-sm text-gray-600 mb-1">Current Image:</p>
                       <img 
-                        src={newProduct.pImage} 
-                        alt="Preview" 
-                        className="h-24 w-24 object-cover rounded-lg"
+                        src={selectedProduct.pImage} 
+                        alt="Current product" 
+                        className="h-20 w-20 object-cover rounded"
                       />
                     </div>
                   )}
-                  <p className="text-xs text-gray-500">
-                    Or enter image URL below
-                  </p>
                 </div>
-                <input
-                  type="text"
-                  name="pImage"
-                  placeholder="Image URL (optional if uploading file)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  value={newProduct.pImage && !newProduct.pImage.startsWith('data:') ? newProduct.pImage : ''}
-                  onChange={handleInputChange}
-                />
-                <select 
-                  name="status"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  value={newProduct.status}
-                  onChange={handleInputChange}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
               </div>
+              
               <div className="mt-6 flex space-x-3">
                 <button
                   type="submit"
@@ -1236,11 +1135,7 @@ function InventoryPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditImageFile(null);
-                    setFormErrors({});
-                  }}
+                  onClick={() => setShowEditModal(false)}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
                 >
                   Cancel
@@ -1256,38 +1151,33 @@ function InventoryPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Category</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter category name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                />
-              </div>
-              <div className="flex space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={saveNewCategory}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg"
-                >
-                  Add Category
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddCategoryModal(false);
-                    setNewCategory('');
-                  }}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
-                >
-                  Cancel
-                </button>
-              </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category Name
+              </label>
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2"
+                placeholder="Enter category name"
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={saveNewCategory}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg"
+              >
+                Add Category
+              </button>
+              <button
+                onClick={() => setShowAddCategoryModal(false)}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

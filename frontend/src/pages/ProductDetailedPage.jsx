@@ -71,7 +71,8 @@ const ProductDetailedPage = () => {
       toast.error("No stock left!");
       return;
     }
-    await addToCart(product.productID, quantity);
+    // Use the correct product ID property
+    await addToCart(product.productID || product.id, quantity);
     toast.success("Added to cart!");
   };
 
@@ -81,7 +82,8 @@ const ProductDetailedPage = () => {
       toast.error("No stock left!");
       return;
     }
-    await addToCart(product.productID, quantity);
+    // Use the correct product ID property
+    await addToCart(product.productID || product.id, quantity);
     navigate("/cart");
   };
 

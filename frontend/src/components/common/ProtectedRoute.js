@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
 const ProtectedRoute = ({ children, requiredRole, redirectTo = "/login" }) => {
-  const { currentUser, userProfile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   // Show loading spinner while checking authentication
@@ -19,23 +19,29 @@ const ProtectedRoute = ({ children, requiredRole, redirectTo = "/login" }) => {
   }
 
   // Redirect to login if not authenticated
-  if (!currentUser) {
+  if (!user) {
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
   // If a specific role is required, check user's role
-  if (requiredRole && userProfile?.role !== requiredRole) {
-    // Redirect based on user's actual role
-    const roleRedirects = {
-      admin: "/dashboard/admin",
-      serviceProvider: "/dashboard/service-provider",
-      petOwner: "/dashboard/pet-owner",
-    };
+  if (requiredRole) {
+    // Note: role in database is "petOwner" (with capital O)
+    const userRole = user.role;
+    const normalizedRequiredRole =
+      requiredRole === "petowner" ? "petOwner" : requiredRole;
 
-    const userRole = userProfile?.role;
-    const redirectPath = roleRedirects[userRole] || "/dashboard";
+    if (userRole !== normalizedRequiredRole) {
+      // Redirect based on user's actual role
+      const roleRedirects = {
+        admin: "/admin/dashboard",
+        serviceProvider: "/dashboard/service-provider",
+        petOwner: "/dashboard/pet-owner/profile",
+      };
 
-    return <Navigate to={redirectPath} replace />;
+      const redirectPath = roleRedirects[userRole] || "/dashboard";
+
+      return <Navigate to={redirectPath} replace />;
+    }
   }
 
   // Allow access if all checks pass

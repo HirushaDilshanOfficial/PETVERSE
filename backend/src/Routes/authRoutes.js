@@ -33,7 +33,10 @@ router.post("/register", registerUser);
 
 // Protected routes (authentication required)
 
-// Get current user profile
+// Get current user profile (this will be the /me endpoint)
+router.get("/me", authenticateUser, getUserProfile);
+
+// Get current user profile (alternative endpoint)
 router.get("/profile", authenticateUser, getUserProfile);
 
 // Update current user profile

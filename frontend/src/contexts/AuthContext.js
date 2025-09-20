@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-// Firebase imports - now enabled with real configuration
+import React, { createContext, useState, useEffect, useContext } from "react";
+import axios from "axios";
+import toast from "react-hot-toast";
+// Firebase imports
 import {
-  createUserWithEmailAndPassword,
+  getAuth,
   signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
+  signOut as firebaseSignOut,
 } from "firebase/auth";
-import { auth } from "../config/firebase";
+import app from "../config/firebase";
 
 const AuthContext = createContext();
 
@@ -19,9 +19,13 @@ export const useAuth = () => {
   return context;
 };
 
+// Helper function to check if user is a pet owner
+export const isPetOwner = (user) => {
+  return user && user.role === "petOwner"; // Note: role is "petOwner" with capital O
+};
+
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -29,105 +33,21 @@ export const AuthProvider = ({ children }) => {
   const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
-  // Register new user with Firebase
-  const signup = async (email, password, userData) => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Initialize Firebase auth
+  const auth = getAuth(app);
 
-      console.log("Starting signup process for:", email);
-
-      // Create user with Firebase Auth first
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const firebaseUser = userCredential.user;
-      console.log("Firebase user created successfully:", firebaseUser.uid);
-
-      // Get fresh Firebase ID token
-      const idToken = await firebaseUser.getIdToken(true);
-      console.log("Firebase token obtained, length:", idToken.length);
-
-      // Prepare backend registration data
-      const registrationData = {
-        ...userData,
-        email: email,
-        firebaseUid: firebaseUser.uid,
-      };
-      console.log("Sending registration data:", {
-        ...registrationData,
-        firebaseUid: "HIDDEN",
-      });
-
-      // Send user data to backend for profile creation
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(registrationData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          "Backend registration failed:",
-          response.status,
-          errorText
-        );
-        throw new Error(
-          `Failed to create user profile: ${response.status} - ${errorText}`
-        );
-      }
-
-      const backendResponse = await response.json();
-      console.log(
-        "Backend registration successful:",
-        backendResponse.user.fullName
-      );
-      setUserProfile(backendResponse.user);
-
-      return { firebaseUser, backendUser: backendResponse.user };
-    } catch (err) {
-      console.error("Signup error:", err);
-
-      // Provide specific error messages
-      if (err.message.includes("Failed to fetch")) {
-        setError(
-          "Network error: Cannot connect to server. Please check if the backend is running."
-        );
-      } else if (err.message.includes("email-already-in-use")) {
-        setError(
-          "This email is already registered. Please use a different email or try logging in."
-        );
-      } else if (err.message.includes("weak-password")) {
-        setError("Password is too weak. Please use at least 6 characters.");
-      } else {
-        setError(err.message);
-      }
-
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  // Clear error
+  const clearError = () => {
+    setError(null);
   };
 
-  // Sign in user with Firebase
+  // Sign in user with email and password
   const signin = async (email, password) => {
     try {
-      setLoading(true);
       setError(null);
+      setLoading(true);
 
-      console.log("Attempting to sign in:", email);
-
-      // Clear any existing auth state first
-      setCurrentUser(null);
-      setUserProfile(null);
-
-      // Sign in with Firebase Auth
+      // Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
@@ -135,166 +55,93 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      console.log("Firebase signin successful:", firebaseUser.uid);
+      // Get Firebase ID token
+      const idToken = await firebaseUser.getIdToken();
 
-      // Force refresh the token to ensure it's fresh
-      const idToken = await firebaseUser.getIdToken(true);
-      console.log("Token obtained, length:", idToken.length);
+      // Set token in axios default headers
+      axios.defaults.headers.common["Authorization"] = `Bearer ${idToken}`;
 
-      // Get user profile from backend
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-        method: "GET",
+      // Fetch user data from backend
+      const res = await axios.get(`${API_BASE_URL}/auth/me`, {
+        withCredentials: true,
         headers: {
           Authorization: `Bearer ${idToken}`,
-          "Content-Type": "application/json",
         },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          "Backend profile fetch failed:",
-          response.status,
-          errorText
-        );
-        throw new Error(`Failed to get user profile: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("Profile fetch successful:", data);
-      console.log("User role:", data.user.role);
-      setUserProfile(data.user);
-      setCurrentUser(firebaseUser);
-
-      return firebaseUser;
+      // Set user data
+      setUser(res.data.user || null);
+      return res.data;
     } catch (err) {
-      console.error("Signin error:", err);
-      setError(err.message);
-
-      // Clear any partial auth state on error
-      setCurrentUser(null);
-      setUserProfile(null);
-
+      const errorMessage =
+        err.response?.data?.message || err.message || "Login failed";
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Sign out user with Firebase
+  // Sign out user
   const signout = async () => {
     try {
-      await signOut(auth);
-      setCurrentUser(null);
-      setUserProfile(null);
+      await firebaseSignOut(auth);
+      delete axios.defaults.headers.common["Authorization"];
+      setUser(null);
     } catch (err) {
-      setError(err.message);
-      throw err;
+      console.error("Error signing out:", err);
     }
   };
 
-  // Reset password with Firebase
-  const forgotPassword = async (email) => {
-    try {
-      setError(null);
-      await sendPasswordResetEmail(auth, email);
-      return {
-        success: true,
-        message: "Password reset email sent successfully!",
-      };
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
-  };
-
-  // Upload documents (MOCK)
-  const uploadDocuments = async (files) => {
-    try {
-      setError(null);
-      console.log("Mock document upload:", Object.keys(files));
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return {
-        success: true,
-        message: "Documents uploaded successfully! (Mock)",
-      };
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
-  };
-
-  // Helper functions
-  const isAuthenticated = () => currentUser !== null;
-  const hasRole = (role) => userProfile?.role === role;
-  const getDisplayName = () =>
-    userProfile?.fullName || currentUser?.email || "User";
-  const getUserRole = () => userProfile?.role || null;
-
-  // Firebase auth state listener
+  // Fetch logged-in user info from backend
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setCurrentUser(firebaseUser);
+    const fetchUser = async () => {
+      try {
+        // Check if user is signed in with Firebase
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          // Get Firebase ID token
+          const idToken = await currentUser.getIdToken();
 
-        // Get user profile from backend
-        try {
-          // Force refresh token to ensure it's valid
-          const idToken = await firebaseUser.getIdToken(true);
+          // Set token in axios default headers
+          axios.defaults.headers.common["Authorization"] = `Bearer ${idToken}`;
 
-          const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-            method: "GET",
+          // Fetch user data from backend
+          const res = await axios.get(`${API_BASE_URL}/auth/me`, {
+            withCredentials: true,
             headers: {
               Authorization: `Bearer ${idToken}`,
-              "Content-Type": "application/json",
             },
           });
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log("Profile data received:", data);
-            setUserProfile(data.user);
-          } else {
-            console.error("Failed to fetch profile, status:", response.status);
-            const errorText = await response.text();
-            console.error("Error details:", errorText);
-
-            // If profile fetch fails, clear the auth state
-            setCurrentUser(null);
-            setUserProfile(null);
-          }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          // Clear auth state on error
-          setCurrentUser(null);
-          setUserProfile(null);
+          setUser(res.data.user || null);
+        } else {
+          setUser(null);
         }
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
 
-    return unsubscribe;
+    fetchUser();
   }, []);
 
-  const value = {
-    currentUser,
-    userProfile,
-    signin,
-    signup,
-    signout,
-    forgotPassword,
-    uploadDocuments,
-    loading,
-    error,
-    isAuthenticated,
-    hasRole,
-    getDisplayName,
-    getUserRole,
-    clearError: () => setError(null),
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        loading,
+        error,
+        signin,
+        signout,
+        clearError,
+        isPetOwner: (user) => isPetOwner(user),
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };

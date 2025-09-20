@@ -154,7 +154,7 @@ app.post("/api/verify-otp", (req, res) => {
 
 // ------------------------------------------------------
 
-// API Routes
+// API Routes (only one instance of each route)
 app.use("/api/auth", authRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/products", productRoutes);

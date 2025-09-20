@@ -1,12 +1,11 @@
 import { useState, useEffect, useContext } from "react";
 import ProductCard from "../Components/ProductCard";
-import axios from "axios";
 import toast from "react-hot-toast";
 import RateLimitedUI from "../Components/RateLimitedUI";
 import { CartContext } from "../contexts/CartContext";
+import { getProducts } from "../api";
 
 const ProductPage = () => {
-  console.log("ProductPage component loaded"); // Add this for debugging
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -17,32 +16,37 @@ const ProductPage = () => {
 
   
   const { addToCart } = useContext(CartContext);
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        console.log("Fetching products from API...");
-        const res = await axios.get(`${API_BASE_URL}/products`);
-        console.log("API Response:", res);
+        const data = await getProducts();
         
-        // Fix: Access the products array from the response data
-        const productsData = res.data.products || [];
-        console.log("Products data:", productsData);
+        // Handle different response structures
+        let productsArray = [];
+        if (Array.isArray(data)) {
+          productsArray = data;
+        } else if (data && Array.isArray(data.products)) {
+          productsArray = data.products;
+        } else if (data && Array.isArray(data.data)) {
+          productsArray = data.data;
+        } else {
+          console.error("Unexpected data structure:", data);
+          toast.error("Failed to load products: Unexpected data format");
+          return;
+        }
         
-        setProducts(productsData);
-        setFilteredProducts(productsData);
+        setProducts(productsArray);
+        setFilteredProducts(productsArray);
 
         // Extract unique categories
-        const uniqueCategories = [...new Set(productsData.map((p) => p.pCategory))];
-        console.log("Categories:", uniqueCategories);
+        const uniqueCategories = [...new Set(productsArray.map((p) => p.pCategory))];
         setCategories(uniqueCategories);
 
         setIsRateLimited(false);
       } catch (error) {
         console.error("Error fetching products:", error);
-        console.error("Error response:", error.response);
         if (error.response?.status === 429) {
           setIsRateLimited(true);
         } else {
@@ -58,7 +62,6 @@ const ProductPage = () => {
 
   // Filter products based on search and category
   useEffect(() => {
-    console.log("Filtering products:", { products, selectedCategory, search });
     let tempProducts = [...products];
 
     if (selectedCategory) {
@@ -73,7 +76,6 @@ const ProductPage = () => {
       );
     }
 
-    console.log("Filtered products:", tempProducts);
     setFilteredProducts(tempProducts);
   }, [search, selectedCategory, products]);
 
@@ -159,9 +161,9 @@ const ProductPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
               <ProductCard
-                key={product.productID}
+                key={product.productID || product.id}
                 product={product}
-                onAdd={(product) => addToCart(product.productID, 1)}
+                onAdd={(product) => addToCart(product.productID || product.id, 1)}
               />
             ))}
           </div>

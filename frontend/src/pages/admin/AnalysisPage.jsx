@@ -17,8 +17,8 @@ import {
   Legend
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
-import { makeAuthenticatedRequest } from '../../utils/authUtils';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -37,7 +37,7 @@ ChartJS.register(
 
 // Analytics Page using Chart.js with real data
 function AnalysisPage() {
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
   
   // State for chart data
   const [userGrowthData, setUserGrowthData] = useState(null);
@@ -50,38 +50,14 @@ function AnalysisPage() {
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
-  // Fetch analytics data
-  const fetchAnalyticsData = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/analytics`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setAnalyticsData(data);
-    } catch (error) {
-      console.error('Error fetching analytics data:', error);
-      setError('Failed to fetch analytics data. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Fetch real data from backend
   useEffect(() => {
     const fetchData = async () => {
       // Check if user is authenticated before fetching data
-      if (!currentUser) {
-        console.log('User not authenticated, skipping data fetch');
+      if (authLoading) return; // Wait for auth to load
+      // Check if user is authenticated and is an admin
+      if (!currentUser || currentUser.role !== 'admin') {
+        console.log('User not authenticated or not admin, skipping data fetch');
         setLoading(false);
         return;
       }
@@ -91,24 +67,43 @@ function AnalysisPage() {
       try {
         console.log('Fetching analytics data...');
         
+        // Get Firebase ID token for authentication
+        const token = await getIdToken();
+        
         // Fetch users data (all users, not just first page)
-        const usersResponse = await makeAuthenticatedRequest('/auth/users?limit=1000');
-        console.log('Users response:', usersResponse);
-        const users = usersResponse.users || [];
-        const totalUsers = usersResponse.pagination?.totalUsers || users.length;
+        const usersResponse = await fetch(`${API_BASE_URL}/auth/users?limit=1000`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!usersResponse.ok) {
+          throw new Error('Failed to fetch users data');
+        }
+        
+        const usersData = await usersResponse.json();
+        const users = usersData.users || [];
+        const totalUsers = usersData.pagination?.totalUsers || users.length;
         console.log('Users data:', users);
         
         // Fetch products data
-        const productsResponse = await makeAuthenticatedRequest('/products');
-        console.log('Products response:', productsResponse);
-        const products = productsResponse.products || [];
-        console.log('Products data:', products);
+        const productsResponse = await fetch(`${API_BASE_URL}/products`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         
-        // Fetch services data
-        const servicesResponse = await makeAuthenticatedRequest('/services');
-        console.log('Services response:', servicesResponse);
-        const services = servicesResponse || [];
-        console.log('Services data:', services);
+        if (!productsResponse.ok) {
+          throw new Error('Failed to fetch products data');
+        }
+        
+        const productsData = await productsResponse.json();
+        const products = productsData.products || [];
+        console.log('Products data:', products);
         
         // Process user growth data (group by month)
         const userGrowth = processUserGrowthData(users);
@@ -122,13 +117,13 @@ function AnalysisPage() {
         const stats = {
           totalUsers: totalUsers, // Use the total from pagination
           totalProducts: products.length,
-          totalServices: services.length,
+          totalServices: 0, // We don't have services endpoint yet
           activeUsers: users.filter(user => user.isActive !== false).length
         };
         console.log('Summary stats:', stats);
         
         // Generate recent activity (simulated for now)
-        const activity = generateRecentActivity(users, products, services);
+        const activity = generateRecentActivity(users, products);
         console.log('Recent activity:', activity);
         
         setUserGrowthData(userGrowth);
@@ -153,7 +148,7 @@ function AnalysisPage() {
     };
 
     fetchData();
-  }, [dateRange, currentUser]);
+  }, [dateRange, currentUser, authLoading]);
 
   // Process user growth data by month
   const processUserGrowthData = (users) => {
@@ -201,7 +196,7 @@ function AnalysisPage() {
       datasets: [
         {
           label: 'New Users',
-          data,
+          data: data,
           backgroundColor: 'rgba(249, 115, 22, 0.6)',
           borderColor: 'rgba(249, 115, 22, 1)',
           borderWidth: 1,
@@ -219,8 +214,20 @@ function AnalysisPage() {
         datasets: [
           {
             data: [],
-            backgroundColor: [],
-            borderColor: [],
+            backgroundColor: [
+              'rgba(249, 115, 22, 0.8)',
+              'rgba(30, 58, 138, 0.8)',
+              'rgba(16, 185, 129, 0.8)',
+              'rgba(245, 158, 11, 0.8)',
+              'rgba(139, 92, 246, 0.8)',
+            ],
+            borderColor: [
+              'rgba(249, 115, 22, 1)',
+              'rgba(30, 58, 138, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(245, 158, 11, 1)',
+              'rgba(139, 92, 246, 1)',
+            ],
             borderWidth: 1,
           },
         ],
@@ -231,114 +238,108 @@ function AnalysisPage() {
     const categoryCounts = {};
     
     products.forEach(product => {
-      const category = product.pCategory || 'Unknown';
+      const category = product.pCategory || 'Uncategorized';
       categoryCounts[category] = (categoryCounts[category] || 0) + 1;
     });
     
-    // Take top 5 categories
-    const topCategories = Object.entries(categoryCounts)
+    // Get top 5 categories
+    const sortedCategories = Object.entries(categoryCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
     
-    // Convert to chart format
-    const labels = topCategories.map(([category]) => category);
-    const data = topCategories.map(([, count]) => count);
-    
-    // Define colors for each category
-    const backgroundColors = [
-      'rgba(249, 115, 22, 0.8)',
-      'rgba(30, 58, 138, 0.8)',
-      'rgba(16, 185, 129, 0.8)',
-      'rgba(139, 92, 246, 0.8)',
-      'rgba(234, 179, 8, 0.8)'
-    ];
-    
-    const borderColors = [
-      'rgba(249, 115, 22, 1)',
-      'rgba(30, 58, 138, 1)',
-      'rgba(16, 185, 129, 1)',
-      'rgba(139, 92, 246, 1)',
-      'rgba(234, 179, 8, 1)'
-    ];
+    const labels = sortedCategories.map(item => item[0]);
+    const data = sortedCategories.map(item => item[1]);
     
     return {
       labels,
       datasets: [
         {
-          data,
-          backgroundColor: backgroundColors.slice(0, labels.length),
-          borderColor: borderColors.slice(0, labels.length),
+          data: data,
+          backgroundColor: [
+            'rgba(249, 115, 22, 0.8)',
+            'rgba(30, 58, 138, 0.8)',
+            'rgba(16, 185, 129, 0.8)',
+            'rgba(245, 158, 11, 0.8)',
+            'rgba(139, 92, 246, 0.8)',
+          ],
+          borderColor: [
+            'rgba(249, 115, 22, 1)',
+            'rgba(30, 58, 138, 1)',
+            'rgba(16, 185, 129, 1)',
+            'rgba(245, 158, 11, 1)',
+            'rgba(139, 92, 246, 1)',
+          ],
           borderWidth: 1,
         },
       ],
     };
   };
 
-  // Generate recent activity (in a real app, this would come from backend)
-  const generateRecentActivity = (users, products, services) => {
+  // Generate recent activity (simulated for now)
+  const generateRecentActivity = (users, products) => {
     const activity = [];
     
-    try {
-      // Handle case where data might be invalid
-      if (!Array.isArray(users) || !Array.isArray(products)) {
-        return activity;
-      }
-      
-      // Add recent user registrations
-      const recentUsers = users
-        .filter(user => user.createdAt)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 3);
-      
-      recentUsers.forEach(user => {
-        activity.push({
-          id: `user-${user._id}`,
-          action: 'New user registered',
-          user: user.fullName,
-          time: formatTimeAgo(user.createdAt)
-        });
-      });
-      
-      // Add recent products
-      const recentProducts = products
-        .filter(product => product.createdAt)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 2);
-      
-      recentProducts.forEach(product => {
-        activity.push({
-          id: `product-${product._id}`,
-          action: 'Product added',
-          product: product.pName,
-          time: formatTimeAgo(product.createdAt)
-        });
-      });
-    } catch (err) {
-      console.warn('Error generating recent activity:', err);
-    }
+    // Add recent user registrations
+    const recentUsers = users
+      .filter(user => user.createdAt)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 3);
     
-    return activity;
+    recentUsers.forEach(user => {
+      activity.push({
+        id: `user-${user._id}`,
+        user: user.fullName || user.email,
+        action: 'User registered',
+        target: 'System',
+        time: formatTimeAgo(user.createdAt),
+        icon: 'user',
+        color: 'bg-blue-500'
+      });
+    });
+    
+    // Add recent product additions
+    const recentProducts = products
+      .filter(product => product.createdAt)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 3);
+    
+    recentProducts.forEach(product => {
+      activity.push({
+        id: `product-${product._id}`,
+        user: 'System',
+        action: 'Product added',
+        target: product.pName,
+        time: formatTimeAgo(product.createdAt),
+        icon: 'product',
+        color: 'bg-green-500'
+      });
+    });
+    
+    // Sort all activity by time
+    return activity.sort((a, b) => {
+      const timeA = new Date(a.time.replace(' ago', ''));
+      const timeB = new Date(b.time.replace(' ago', ''));
+      return timeB - timeA;
+    }).slice(0, 6);
   };
 
-  // Format time ago (e.g., "2 hours ago")
+  // Format time ago (simplified)
   const formatTimeAgo = (dateString) => {
+    if (!dateString) return 'Unknown time';
+    
     const date = new Date(dateString);
     const now = new Date();
-    const diffInMs = now - date;
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
     
-    if (diffInDays > 0) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    } else if (diffInHours > 0) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    } else {
-      return 'Just now';
-    }
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays} days ago`;
+    return 'More than 30 days ago';
   };
 
-  // Export data to PDF using jsPDF
-  const exportData = () => {
+  // Export data to PDF
+  const exportToPDF = async () => {
     try {
       // Create new PDF document in landscape mode for better data display
       const doc = new jsPDF('landscape');
@@ -360,7 +361,7 @@ function AnalysisPage() {
       doc.text('New Kandy Road, Malabe • Tel: 0912345673', 148.5, 33, null, null, 'center');
       doc.text('www.petverse.com • hello@petverse.com', 148.5, 39, null, null, 'center');
       
-      // Add date with better formatting
+      // Add date and filter information with better formatting
       const date = new Date().toLocaleDateString();
       const time = new Date().toLocaleTimeString();
       doc.setFontSize(11);
@@ -403,30 +404,29 @@ function AnalysisPage() {
       
       let currentY = 90;
       
-      // Add user growth data table if available
-      if (userGrowthData) {
-        doc.setFontSize(16);
-        doc.setTextColor(30, 64, 175); // Blue color
+      // Add user growth data table
+      if (userGrowthData && userGrowthData.labels.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
         doc.setFont(undefined, 'bold');
-        doc.text("User Growth Data", 20, currentY);
+        doc.text('User Growth Data', 20, currentY);
+        currentY += 10;
         
-        // Prepare table data
-        const userGrowthTable = userGrowthData.labels.map((label, index) => [
+        const userGrowthTableData = userGrowthData.labels.map((label, index) => [
           label,
-          userGrowthData.datasets[0].data[index]
+          userGrowthData.datasets[0].data[index].toString()
         ]);
         
-        // Add table
         autoTable(doc, {
           head: [['Month', 'New Users']],
-          body: userGrowthTable,
-          startY: currentY + 10,
+          body: userGrowthTableData,
+          startY: currentY,
           styles: {
             fontSize: 9,
             cellPadding: 3
           },
           headStyles: {
-            fillColor: [30, 64, 175], // Blue color from PETVERSE theme
+            fillColor: [30, 64, 175],
             textColor: [255, 255, 255],
             fontStyle: 'bold'
           },
@@ -435,37 +435,35 @@ function AnalysisPage() {
           },
           alternateRowStyles: {
             fillColor: [248, 249, 250]
-          },
-          pageBreak: 'auto'
+          }
         });
         
-        currentY = doc.lastAutoTable.finalY + 15;
+        currentY = doc.lastAutoTable.finalY + 10;
       }
       
-      // Add product category data table if available
-      if (productCategoryData) {
-        doc.setFontSize(16);
-        doc.setTextColor(30, 64, 175); // Blue color
+      // Add product category data table
+      if (productCategoryData && productCategoryData.labels.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
         doc.setFont(undefined, 'bold');
-        doc.text("Product Categories", 20, currentY);
+        doc.text('Product Categories', 20, currentY);
+        currentY += 10;
         
-        // Prepare table data
-        const productCategoryTable = productCategoryData.labels.map((label, index) => [
+        const productCategoryTableData = productCategoryData.labels.map((label, index) => [
           label,
-          productCategoryData.datasets[0].data[index]
+          productCategoryData.datasets[0].data[index].toString()
         ]);
         
-        // Add table
         autoTable(doc, {
-          head: [['Category', 'Count']],
-          body: productCategoryTable,
-          startY: currentY + 10,
+          head: [['Category', 'Products']],
+          body: productCategoryTableData,
+          startY: currentY,
           styles: {
             fontSize: 9,
             cellPadding: 3
           },
           headStyles: {
-            fillColor: [30, 64, 175], // Blue color from PETVERSE theme
+            fillColor: [30, 64, 175],
             textColor: [255, 255, 255],
             fontStyle: 'bold'
           },
@@ -474,8 +472,46 @@ function AnalysisPage() {
           },
           alternateRowStyles: {
             fillColor: [248, 249, 250]
+          }
+        });
+        
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+      
+      // Add recent activity
+      if (recentActivity && recentActivity.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont(undefined, 'bold');
+        doc.text('Recent Activity', 20, currentY);
+        currentY += 10;
+        
+        const activityTableData = recentActivity.map(activity => [
+          activity.user,
+          activity.action,
+          activity.target,
+          activity.time
+        ]);
+        
+        autoTable(doc, {
+          head: [['User', 'Action', 'Target', 'Time']],
+          body: activityTableData,
+          startY: currentY,
+          styles: {
+            fontSize: 9,
+            cellPadding: 3
           },
-          pageBreak: 'auto'
+          headStyles: {
+            fillColor: [30, 64, 175],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold'
+          },
+          bodyStyles: {
+            textColor: [0, 0, 0]
+          },
+          alternateRowStyles: {
+            fillColor: [248, 249, 250]
+          }
         });
       }
       
@@ -532,6 +568,17 @@ function AnalysisPage() {
     },
   };
 
+  if (authLoading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading analytics dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="p-6">
@@ -543,29 +590,8 @@ function AnalysisPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <div className="text-red-500 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <p className="text-red-500 text-lg font-medium">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show a message if user is not authenticated
-  if (!currentUser) {
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
     return (
       <div className="p-6">
         <div className="text-center py-12">
@@ -574,8 +600,8 @@ function AnalysisPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <p className="text-orange-500 text-lg font-medium">Authentication required</p>
-          <p className="text-gray-600 mt-2">Please log in to view analytics data.</p>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
         </div>
       </div>
     );
@@ -589,28 +615,27 @@ function AnalysisPage() {
         <p className="text-gray-600 mt-2">View business insights and performance metrics</p>
       </div>
 
-      {/* Controls Section */}
+      {/* Date Range Filter and Export Button */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Date Range Filter */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <CalendarDaysIcon className="h-5 w-5 text-gray-400" />
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+            <CalendarDaysIcon className="h-5 w-5 text-gray-500" />
+            <span className="text-gray-700">Date Range:</span>
+            <select 
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             >
               <option value="7days">Last 7 Days</option>
               <option value="30days">Last 30 Days</option>
-              <option value="90days">Last 3 Months</option>
+              <option value="90days">Last 90 Days</option>
               <option value="1year">Last Year</option>
             </select>
           </div>
-
-          {/* Export Button */}
+          
           <button
-            onClick={exportData}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            onClick={exportToPDF}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
             <ArrowDownTrayIcon className="h-5 w-5" />
             Export Data
@@ -618,81 +643,147 @@ function AnalysisPage() {
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-red-800">{error}</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      )}
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Users</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryStats?.totalUsers ?? 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Products</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryStats?.totalProducts ?? 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-orange-100 text-orange-600 mr-4">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Services</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryStats?.totalServices ?? 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Active Users</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryStats?.activeUsers ?? 0}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* User Growth Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center mb-4">
-            <ChartBarIcon className="h-6 w-6 text-orange-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">User Growth</h3>
-          </div>
-          <div className="h-64">
-            {userGrowthData && userGrowthData.labels && userGrowthData.labels.length > 0 ? (
-              <Bar data={userGrowthData} options={userGrowthOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No user growth data available
-              </div>
-            )}
-          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">User Growth</h3>
+          {userGrowthData && userGrowthData.labels.length > 0 ? (
+            <Bar data={userGrowthData} options={userGrowthOptions} />
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No user growth data available
+            </div>
+          )}
         </div>
-
+        
         {/* Product Categories Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center mb-4">
-            <ChartBarIcon className="h-6 w-6 text-green-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Product Categories</h3>
-          </div>
-          <div className="h-64">
-            {productCategoryData && productCategoryData.labels && productCategoryData.labels.length > 0 ? (
-              <Pie data={productCategoryData} options={productCategoryOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No product category data available
-              </div>
-            )}
-          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Product Categories</h3>
+          {productCategoryData && productCategoryData.labels.length > 0 ? (
+            <Pie data={productCategoryData} options={productCategoryOptions} />
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No product category data available
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Summary Stats */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Summary Statistics</h3>
+      {/* Recent Activity */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+        {recentActivity && recentActivity.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded">
-              <span className="text-gray-700">Total Users</span>
-              <span className="font-bold text-orange-600">{summaryStats?.totalUsers ?? 0}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-              <span className="text-gray-700">Total Products</span>
-              <span className="font-bold text-blue-600">{summaryStats?.totalProducts ?? 0}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-green-50 rounded">
-              <span className="text-gray-700">Total Services</span>
-              <span className="font-bold text-green-600">{summaryStats?.totalServices ?? 0}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-purple-50 rounded">
-              <span className="text-gray-700">Active Users</span>
-              <span className="font-bold text-purple-600">{summaryStats?.activeUsers ?? 0}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            {recentActivity && recentActivity.length > 0 ? (
-              recentActivity.map((activity) => (
-                <div key={activity.id} className="border-l-4 border-orange-500 pl-3 py-1">
-                  <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-start">
+                <div className={`p-2 rounded-full ${activity.color} text-white mr-3`}>
+                  {activity.icon === 'user' && (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  )}
+                  {activity.icon === 'product' && (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  )}
+                  {activity.icon === 'service' && (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
                 </div>
-              ))
-            ) : (
-              <p className="text-gray-500 text-sm">No recent activity</p>
-            )}
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">{activity.user}</p>
+                  <p className="text-sm text-gray-600">{activity.action} {activity.target}</p>
+                  <p className="text-xs text-gray-400">{activity.time}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No recent activity available
+          </div>
+        )}
       </div>
     </div>
   );

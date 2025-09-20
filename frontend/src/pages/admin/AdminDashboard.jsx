@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 
 // Navbar Component
 function Navbar() {
@@ -121,7 +122,7 @@ const Icons = {
   ),
   Chart: () => (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
     </svg>
   ),
   Services: () => (
@@ -142,7 +143,7 @@ const Icons = {
 };
 
 function AdminDashboard() {
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
   const [stats, setStats] = useState({
     totalUsers: 0,
     pendingKYC: 0,
@@ -151,6 +152,7 @@ function AdminDashboard() {
   });
   
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
@@ -158,12 +160,17 @@ function AdminDashboard() {
     // Load dashboard stats from API
     const loadDashboardStats = async () => {
       try {
-        if (!currentUser) return;
+        if (authLoading) return; // Wait for auth to load
+        // Check if user is authenticated and is an admin
+        if (!currentUser || currentUser.role !== 'admin') return;
         
-        const token = await currentUser.getIdToken();
+        setLoading(true);
+        setError(null);
+        
+        const token = await getIdToken();
         
         // Fetch all users to calculate statistics
-        const response = await fetch(`${API_BASE_URL}/auth/users?page=1&limit=100`, {
+        const response = await fetch(`${API_BASE_URL}/auth/users?limit=1000`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -176,10 +183,10 @@ function AdminDashboard() {
         }
         
         const data = await response.json();
-        const users = data.users;
+        const users = data.users || [];
         
         // Calculate statistics
-        const totalUsers = users.length;
+        const totalUsers = data.pagination?.totalUsers || users.length;
         const pendingKYC = users.filter(user => 
           user.role === 'serviceProvider' && 
           !user.verification?.isVerified && 
@@ -199,16 +206,8 @@ function AdminDashboard() {
         setLoading(false);
       } catch (error) {
         console.error('Error loading dashboard stats:', error);
-        // Fallback to demo data in case of error
-        setTimeout(() => {
-          setStats({
-            totalUsers: 1247,
-            pendingKYC: 23,
-            totalServices: 156,
-            totalRevenue: 89420
-          });
-          setLoading(false);
-        }, 1200);
+        setError(error.message);
+        setLoading(false);
       }
     };
     
@@ -220,7 +219,7 @@ function AdminDashboard() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [currentUser]);
+  }, [currentUser, authLoading]);
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
@@ -277,6 +276,34 @@ function AdminDashboard() {
       </div>
     </div>
   );
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

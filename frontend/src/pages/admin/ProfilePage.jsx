@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getIdToken } from '../../utils/authUtils';
 import { 
   UserCircleIcon, 
   PencilIcon, 
@@ -16,7 +17,7 @@ import { auth } from '../../config/firebase';
 
 // Admin Profile Page with real data
 function ProfilePage() {
-  const { userProfile, currentUser } = useAuth();
+  const { user: userProfile, user: currentUser, loading: authLoading } = useAuth();
   
   // State for admin profile
   const [profile, setProfile] = useState({
@@ -60,6 +61,10 @@ function ProfilePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        if (authLoading) return; // Wait for auth to load
+        // Check if user is authenticated and is an admin
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
         setLoading(true);
         // Set profile data from auth context
         if (userProfile) {
@@ -90,16 +95,32 @@ function ProfilePage() {
     };
 
     loadData();
-  }, [userProfile]);
+  }, [userProfile, currentUser, authLoading]);
 
   // Load activity logs from backend
   const loadActivityLogs = async () => {
     try {
+      // Get Firebase ID token for authentication
+      const token = await getIdToken();
+      
       // Fetch users, products, and services to create activity logs
       const [usersResponse, productsResponse, servicesResponse] = await Promise.all([
-        makeAuthenticatedRequest('/auth/users?limit=5'),
-        makeAuthenticatedRequest('/products?limit=5'),
-        makeAuthenticatedRequest('/services?limit=5')
+        fetch(`${API_BASE_URL}/auth/users?limit=5`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => res.json()),
+        fetch(`${API_BASE_URL}/products?limit=5`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => res.json()),
+        // We don't have a services endpoint yet, so we'll skip this for now
+        Promise.resolve([])
       ]);
       
       const logs = [];
@@ -124,18 +145,6 @@ function ProfilePage() {
             action: 'New product added',
             target: product.pName || 'Unknown Product',
             timestamp: product.createdAt ? new Date(product.createdAt).toLocaleString() : 'Unknown'
-          });
-        });
-      }
-      
-      // Add service creation activities
-      if (servicesResponse) {
-        servicesResponse.slice(0, 3).forEach(service => {
-          logs.push({
-            id: `service-${service._id}`,
-            action: 'New service created',
-            target: service.title || 'Unknown Service',
-            timestamp: service.createdAt ? new Date(service.createdAt).toLocaleString() : 'Unknown'
           });
         });
       }
@@ -402,6 +411,23 @@ function ProfilePage() {
       setNotifications(prev => prev.filter(notification => notification.id !== id));
     }, 3000);
   };
+
+  // Show a message if user is not authenticated or not an admin
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-orange-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <p className="text-orange-500 text-lg font-medium">Access denied</p>
+          <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

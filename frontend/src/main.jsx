@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import App from './App';
+import App from './App.js';
 import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

@@ -44,3 +44,21 @@ export const clearCart = async () => {
   });
   return res.data;
 };
+
+// Get service by ID
+export const getServiceById = async (id) => {
+  const res = await axios.get(`${API_URL}/services/${id}`);
+  return res.data;
+};
+
+// Get all services
+export const getServices = async () => {
+  const res = await axios.get(`${API_URL}/services`);
+  return res.data;
+};
+
+// Get all products
+export const getProducts = async () => {
+  const res = await axios.get(`${API_URL}/products`);
+  return res.data;
+};
