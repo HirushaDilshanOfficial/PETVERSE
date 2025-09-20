@@ -54,7 +54,7 @@ export async function getServiceById(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
-
+// getting user inputs
 // Create service
 export async function createService(req, res) {
   try {

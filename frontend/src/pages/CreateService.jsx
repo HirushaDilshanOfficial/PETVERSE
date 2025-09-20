@@ -9,7 +9,7 @@ const TIERS = [
   { key: 'premium', label: 'Premium' },
   { key: 'luxury', label: 'Luxury' },
 ];
-
+//creating a service
 const CreateService = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
