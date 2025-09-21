@@ -42,7 +42,8 @@ const serviceSchema = new mongoose.Schema(
       type: String,
       enum: ["grooming", "boarding", "training", "veterinary", "other"],
     },
-    address: {   // ✅ change from location → address
+    address: {
+      // ✅ change from location → address
       type: String,
     },
     price: {
@@ -63,7 +64,6 @@ const serviceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 const Service = mongoose.model("Service", serviceSchema);
 export default Service;

@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import serviceRoutes from "./Routes/serviceRoutes.js";
@@ -6,18 +9,35 @@ import productRoutes from "./Routes/productRoutes.js";
 import cartRoutes from "./Routes/cartRoutes.js";
 import orderRoutes from "./Routes/orderRoutes.js";
 import paymentRoutes from "./Routes/paymentRoutes.js";
+import ratingsRoutes from "./Routes/RatingsRoute.js";
+import contactRoutes from "./Routes/ContactRoute.js";
+import advertisementRoutes from "./Routes/AdvertisementRoute.js";
 import { connectDB } from "./Config/db.js";
-import dotenv from "dotenv";
 import rateLimiter from "./Middleware/rateLimiter.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import nodemailer from "nodemailer";
-import ratingsRoutes from "./Routes/RatingsRoute.js";
-import contactRoutes from "./Routes/ContactRoute.js";
-import advertisementRoutes from "./Routes/AdvertisementRoute.js";
 
-// Load environment variables
-dotenv.config();
+// Get current directory path and load env FIRST
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const envPath = path.join(__dirname, "../.env");
+dotenv.config({ path: envPath });
+
+// Debug environment variables
+console.log("Environment variables loaded:");
+console.log(
+  "CLOUDINARY_CLOUD_NAME:",
+  process.env.CLOUDINARY_CLOUD_NAME ? "SET" : "NOT SET"
+);
+console.log(
+  "CLOUDINARY_API_KEY:",
+  process.env.CLOUDINARY_API_KEY ? "SET" : "NOT SET"
+);
+console.log(
+  "CLOUDINARY_API_SECRET:",
+  process.env.CLOUDINARY_API_SECRET ? "SET" : "NOT SET"
+);
 
 // Initialize Firebase configuration
 import "./Config/firebase.js";

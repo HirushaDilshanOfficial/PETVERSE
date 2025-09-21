@@ -2,10 +2,14 @@ import ratelimit from "../Config/upstash.js";
 
 const rateLimiter = async (req, res, next) => {
   try {
-    // Use the client's IP address as the rate limit key for better accuracy
-    const identifier =
-      req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-    const { success } = await ratelimit.limit(identifier || "default-key");
+    // Allow CORS preflight requests to pass through
+    if (req.method === "OPTIONS") {
+      return next();
+    }
+
+    // Use a per-client identifier to avoid globally throttling all users
+    const identifier = req.ip || req.headers["x-forwarded-for"] || "global";
+    const { success } = await ratelimit.limit(`rate:${identifier}`);
 
     if (!success) {
       return res.status(429).json({
@@ -15,7 +19,8 @@ const rateLimiter = async (req, res, next) => {
     next();
   } catch (error) {
     console.log("Rate limit error", error);
-    next(error);
+    // Do not block requests if the rate limiter backend fails
+    next();
   }
 };
 

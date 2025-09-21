@@ -23,4 +23,8 @@ const RateLimitedUI = () => {
   );
 };
 
+<<<<<<< HEAD
 export default RateLimitedUI;
+=======
+export default RateLimitedUI;
+>>>>>>> umangi

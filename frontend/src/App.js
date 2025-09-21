@@ -42,11 +42,20 @@ import ProtectedRoute, {
   ServiceProviderRoute,
   PetOwnerRoute,
 } from "./components/common/ProtectedRoute";
+// Service-related components from App.jsx
+import ServicePage from "./pages/ServicePage";
+import CreatePage from "./pages/CreateService";
+import SelectServiceCategory from "./pages/SelectServiceCategory";
+import ServicePdashboard from "./pages/ServicePdashboard";
+import MyServices from "./pages/MyServices";
+import EditService from "./pages/EditService";
+import Navbar from "./Components/Navbar";
 
 function App() {
   return (
     <CartProvider>
       <Routes>
+        {/* Existing routes */}
         <Route path="/" element={<Home />} />
         <Route path="/test" element={<TestPage />} />
         <Route path="/products" element={<ProductPage />} />
@@ -113,6 +122,24 @@ function App() {
         <Route path="/TestProvider" element={<TestProvider />} />
         {/* Redirect dashboard to appropriate role-based dashboard */}
         <Route path="/dashboard" element={<DashboardRedirect />} />
+
+        {/* Service-related routes from App.jsx */}
+        <Route path="/services" element={<ServicePage />} />
+        <Route path="/services/create" element={<CreatePage />} />
+        <Route
+          path="/services/create/select"
+          element={<SelectServiceCategory />}
+        />
+        <Route path="/services/:id" element={<ServiceDetailPage />} />
+        <Route
+          path="/dashboard/service-provider/services"
+          element={<ServicePdashboard />}
+        />
+        <Route
+          path="/dashboard/service-provider/my-services"
+          element={<MyServices />}
+        />
+        <Route path="/services/:id/edit" element={<EditService />} />
       </Routes>
     </CartProvider>
   );
