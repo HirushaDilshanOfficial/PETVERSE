@@ -249,7 +249,7 @@ const handleSubmit = async (e) => {
 };
 
   return (
-    <div className="min-h-screen bg-base-200">
+    <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-3 mb-6">
@@ -260,13 +260,13 @@ const handleSubmit = async (e) => {
           </div>
 
           {!category && (
-            <div className="alert alert-warning mb-6">
+            <div className="alert mb-6 bg-white border border-yellow-500 text-yellow-700">
               <span>Please choose a category first.</span>
-              <Link to="/services/create/select" className="btn btn-sm">Choose Category</Link>
+              <Link to="/services/create/select" className="btn btn-sm bg-blue-600 text-white hover:bg-orange-500">Choose Category</Link>
             </div>
           )}
 
-          <div className="card bg-base-100 shadow">
+          <div className="card bg-white border border-black shadow">
             <div className="card-body">
               <div className="flex items-center justify-between">
                 <h2 className="card-title text-2xl">Create New Service</h2>
@@ -279,12 +279,12 @@ const handleSubmit = async (e) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="form-control mb-4">
                     <label className="label">
-                      <span className="label-text">Title</span>
+                      <span className="label-text text-black">Title</span>
                     </label>
                     <input
                       type="text"
                       placeholder="Service Title"
-                      className={`input input-bordered ${errors.title ? 'input-error' : ''}`}
+                      className={`input input-bordered bg-white border-black text-black placeholder-gray-500 ${errors.title ? 'input-error border-red-500' : ''}`}
                       value={title}
                       onChange={(e) => handleTitleChange(e.target.value)}
                       required
@@ -294,12 +294,12 @@ const handleSubmit = async (e) => {
 
                   <div className="form-control mb-4">
                     <label className="label">
-                      <span className="label-text">Location</span>
+                      <span className="label-text text-black">Location</span>
                     </label>
                     <input
                       type="text"
                       placeholder="City, Area"
-                      className="input input-bordered"
+                      className="input input-bordered bg-white border-black text-black placeholder-gray-500"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                     />
@@ -308,11 +308,11 @@ const handleSubmit = async (e) => {
 
                 <div className="form-control mb-4">
                   <label className="label">
-                    <span className="label-text">Description</span>
+                    <span className="label-text text-black">Description</span>
                   </label>
                   <textarea
                     placeholder="Describe your service..."
-                    className="textarea textarea-bordered h-32"
+                    className="textarea textarea-bordered bg-white border-black text-black placeholder-gray-500 h-32"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
@@ -320,11 +320,11 @@ const handleSubmit = async (e) => {
 
                 <div className="form-control mb-4">
                   <label className="label">
-                    <span className="label-text">Images</span>
+                    <span className="label-text text-black">Images</span>
                   </label>
                   <input
                     type="file"
-                    className="file-input file-input-bordered"
+                    className="file-input file-input-bordered bg-white border-black text-black file:border-0 file:bg-white file:text-black"
                     multiple
                     accept="image/*"
                     onChange={handleImagesChange}
@@ -342,22 +342,22 @@ const handleSubmit = async (e) => {
                   )}
                 </div>
 
-                <div className="divider">Packages</div>
+                <div className="divider text-black">Packages</div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {packages.map((pkg, idx) => (
-                    <div key={pkg.tier} className="card bg-base-200">
+                    <div key={pkg.tier} className="card bg-white border border-black">
                       <div className="card-body gap-3">
-                        <h3 className="card-title text-xl">{pkg.tier}</h3>
+                        <h3 className="card-title text-xl text-black">{pkg.tier}</h3>
 
                         <div className="form-control">
                           <label className="label">
-                            <span className="label-text">Price</span>
+                            <span className="label-text text-black">Price</span>
                           </label>
                           <input
                             type="text"
                             placeholder="0.00"
-                            className={`input input-bordered ${errors[`price-${idx}`] ? 'input-error' : ''}`}
+                            className={`input input-bordered bg-white border-black text-black placeholder-gray-500 ${errors[`price-${idx}`] ? 'input-error border-red-500' : ''}`}
                             value={pkg.price}
                             onChange={(e) => handlePriceChange(idx, e.target.value)}
                           />
@@ -366,12 +366,12 @@ const handleSubmit = async (e) => {
 
                         <div className="form-control">
                           <label className="label">
-                            <span className="label-text">Duration</span>
+                            <span className="label-text text-black">Duration</span>
                           </label>
                           <input
                             type="text"
                             placeholder="e.g., 30 minutes, 1 day"
-                            className={`input input-bordered ${errors[`duration-${idx}`] ? 'input-error' : ''}`}
+                            className={`input input-bordered bg-white border-black text-black placeholder-gray-500 ${errors[`duration-${idx}`] ? 'input-error border-red-500' : ''}`}
                             value={pkg.duration}
                             onChange={(e) => handleDurationChange(idx, e.target.value)}
                           />
@@ -380,13 +380,13 @@ const handleSubmit = async (e) => {
 
                         <div className="form-control">
                           <label className="label">
-                            <span className="label-text">Services Included</span>
+                            <span className="label-text text-black">Services Included</span>
                           </label>
                           <div className="flex gap-2">
                             <input
                               type="text"
                               placeholder="Add a service..."
-                              className={`input input-bordered flex-1 ${errors[`includeInput-${idx}`] ? 'input-error' : ''}`}
+                              className={`input input-bordered flex-1 bg-white border-black text-black placeholder-gray-500 ${errors[`includeInput-${idx}`] ? 'input-error border-red-500' : ''}`}
                               value={pkg.includeInput}
                               onChange={(e) => handleIncludeInputChange(idx, e.target.value)}
                               onKeyDown={(e) => {
@@ -398,7 +398,7 @@ const handleSubmit = async (e) => {
                             />
                             <button
                               type="button"
-                              className="flex items-center gap-1 text-black font-medium"
+                              className="flex items-center gap-1 text-black font-medium bg-white border border-black px-2 rounded hover:bg-gray-100"
                               onClick={() => addIncludedService(idx)}
                             >
                               <PlusIcon className="size-3" />
@@ -410,9 +410,9 @@ const handleSubmit = async (e) => {
                           {pkg.included.length > 0 && (
                             <ul className="mt-3 space-y-2">
                               {pkg.included.map((item, i) => (
-                                <li key={`${pkg.tier}-${i}`} className="flex items-center justify-between bg-base-100 px-3 py-2 rounded">
-                                  <span className="text-sm">{item}</span>
-                                  <button type="button" className="btn btn-ghost btn-xs" onClick={() => removeIncludedService(idx, i)}>
+                                <li key={`${pkg.tier}-${i}`} className="flex items-center justify-between bg-white px-3 py-2 rounded border border-black">
+                                  <span className="text-black">{item}</span>
+                                  <button type="button" className="btn btn-ghost btn-xs text-black" onClick={() => removeIncludedService(idx, i)}>
                                     <Trash2Icon className="size-4" />
                                   </button>
                                 </li>
@@ -426,7 +426,7 @@ const handleSubmit = async (e) => {
                 </div>
 
                 <div className="card-actions justify-end">
-                  <button type="submit" className={`px-20 py-2 rounded-lg bg-blue-600 text-white hover:bg-orange-500 hover:scale-105 transform transition-all duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={loading}>
+                  <button type="submit" className={`px-20 py-2 rounded-lg bg-white text-black border border-black hover:bg-gray-100 hover:scale-105 transform transition-all duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={loading}>
                     {loading ? 'Creating...' : 'Create Service'}
                   </button>
                 </div>

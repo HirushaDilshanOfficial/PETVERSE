@@ -45,7 +45,8 @@ const ServicePage = () => {
   );
 
  return (
-    <div className="min-h-screen">
+    // Changed from min-h-screen to min-h-screen bg-white to make background white
+    <div className="min-h-screen bg-white">
       {isRateLimited && <RateLimitedUI />}
 
       <div className="max-w-7xl mx-auto p-4 mt-6">

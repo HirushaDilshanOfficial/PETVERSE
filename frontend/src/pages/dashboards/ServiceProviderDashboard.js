@@ -154,7 +154,8 @@ const ServicePdashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-200">
+    // Changed from min-h-screen bg-base-200 to min-h-screen bg-white
+    <div className="min-h-screen bg-white">
       {loading && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="text-center">
@@ -167,7 +168,7 @@ const ServicePdashboard = () => {
         </div>
       )}
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar - keeping the blue background as it's part of the design */}
         <aside className="hidden md:flex w-64 min-h-screen sticky top-0 flex-col border-r bg-[#1E40AF]">
           <div className="p-4 border-b border-white/20">
             <h2 className="font-bold text-lg text-white">Provider Dashboard</h2>
@@ -242,8 +243,8 @@ const ServicePdashboard = () => {
           </div>
         </aside>
 
-        {/* Main */}
-        <main className="flex-1">
+        {/* Main - changed from flex-1 to flex-1 bg-white */}
+        <main className="flex-1 bg-white">
           <div className="max-w-7xl mx-auto p-4 md:p-6">
             {/* Header with half-height background and profile avatar */}
             <div
@@ -305,8 +306,9 @@ const ServicePdashboard = () => {
             {/* Ads Section + Analytics */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* My Advertisements Section */}
+              {/* Changed from bg-base-100 to bg-white and added border */}
               <div className="lg:col-span-1">
-                <div className="card bg-base-100 border p-6 flex flex-col items-center text-center">
+                <div className="card bg-white border p-6 flex flex-col items-center text-center">
                   <div className="p-4 rounded-full bg-base-200 border border-gray-300 mb-4">
                     <MegaphoneIcon className="size-8 text-orange-500" />
                   </div>
@@ -336,7 +338,8 @@ const ServicePdashboard = () => {
               </div>
 
               {/* Analytics Summary - now takes 2 columns */}
-              <div className="space-y-4 p-4 bg-base-100 rounded-lg border lg:col-span-2">
+              {/* Changed from bg-base-100 to bg-white and added border */}
+              <div className="space-y-4 p-4 bg-white rounded-lg border lg:col-span-2">
                 {/* Header */}
                 <h2 className="text-xl font-bold">Analytics Summary</h2>
 

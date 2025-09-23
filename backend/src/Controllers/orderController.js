@@ -237,3 +237,39 @@ export const getUserOrders = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// UPDATE ORDER
+export const updateOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid order ID" });
+    }
+
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Check if the order belongs to the current user (for security)
+    if (order.userID.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Update the order with provided data
+    Object.keys(updateData).forEach((key) => {
+      order[key] = updateData[key];
+    });
+
+    await order.save();
+
+    res.json({ message: "Order updated successfully", order });
+  } catch (err) {
+    console.error("Update order error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

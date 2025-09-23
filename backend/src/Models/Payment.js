@@ -26,7 +26,7 @@ const paymentSchema = new mongoose.Schema({
   paidAt: { type: Date, default: Date.now }
 });
 
-// 🔹 Auto-generate a custom paymentID before saving
+// Auto-generate a custom paymentID before saving
 paymentSchema.pre("save", function (next) {
   if (!this.paymentID) {
     // Example: PAY-20250918-<5-digit-random>

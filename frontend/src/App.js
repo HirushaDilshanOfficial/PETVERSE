@@ -7,6 +7,7 @@ import { CartProvider } from "./contexts/CartContext";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
 import PaymentPage from "./pages/PaymentPage.jsx";
 import BankTransferPage from "./Pages/BankTransferPage.jsx";
+import PaymentSuccess from "./components/PaymentSuccess.jsx"; // Add this import
 // Import Home component
 import Home from "./pages/Home.jsx";
 // Import auth components
@@ -70,7 +71,6 @@ function App() {
         <Route path="/TestAdmin" element={<TestAdmin />} />
         <Route path="/TestHome" element={<TestHome />} />
         <Route path="/TestProvider" element={<TestProvider />} />
-
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/admin-login" element={<AdminLogin />} />
@@ -81,7 +81,6 @@ function App() {
           element={<ServiceProviderSignup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-
         {/* Protected Dashboard Routes */}
         <Route
           path="/dashboard/pet-owner/profile"
@@ -99,7 +98,6 @@ function App() {
             </ServiceProviderRoute>
           }
         />
-
         {/* Admin Routes with Layout */}
         <Route
           path="/admin"
@@ -116,7 +114,6 @@ function App() {
           <Route path="analytics" element={<AnalysisPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
-
         {/* Service-related routes */}
         <Route path="/services/create" element={<CreatePage />} />
         <Route
@@ -132,10 +129,8 @@ function App() {
           element={<MyServices />}
         />
         <Route path="/services/:id/edit" element={<EditService />} />
-
         {/* Redirect dashboard to appropriate role-based dashboard */}
         <Route path="/dashboard" element={<DashboardRedirect />} />
-
         {/* Cart and Checkout Routes */}
         <Route
           path="/cart"
@@ -148,6 +143,7 @@ function App() {
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/payment" element={<PaymentPage />} />
         <Route path="/bank-transfer" element={<BankTransferPage />} />
+        <Route path="/success" element={<PaymentSuccess />} /> // Add this route
       </Routes>
     </CartProvider>
   );

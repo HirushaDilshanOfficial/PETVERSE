@@ -9,14 +9,6 @@ const DELIVERY_FEE = 300;
 
 const CheckoutForm = ({ onPlaceOrder, userData }) => {
   const { cart, subtotal } = useContext(CartContext);
-  
-  // Debug log to see cart data
-  console.log("CheckoutForm - Cart data:", cart);
-  console.log("CheckoutForm - Subtotal:", subtotal);
-  // Log first item to see its structure
-  if (cart && cart.length > 0) {
-    console.log("CheckoutForm - First item:", cart[0]);
-  }
 
   const [sameAsBilling, setSameAsBilling] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("online");
@@ -314,22 +306,9 @@ const CheckoutForm = ({ onPlaceOrder, userData }) => {
             <div className="divide-y">
               {cart.map((item) => (
                 <div key={item.productId} className="flex justify-between py-2 text-sm">
-                  {/* Display item image */}
-                  <div className="flex items-center">
-                    <img
-                      src={item.image || item.pImage || "https://placehold.co/50x50?text=No+Image"}
-                      alt={item.name || item.pName}
-                      className="w-12 h-12 object-cover rounded-md mr-3"
-                      onError={(e) => {
-                        e.target.src = "https://placehold.co/50x50?text=No+Image";
-                      }}
-                    />
-                    <div>
-                      <span>
-                        {item.pName} (x{item.quantity})
-                      </span>
-                    </div>
-                  </div>
+                  <span>
+                    {item.pName} (x{item.quantity})
+                  </span>
                   <span>Rs.{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}

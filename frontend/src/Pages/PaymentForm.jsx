@@ -1,11 +1,9 @@
-// src/components/PaymentForm.jsx
 import { useState } from "react";
 
 const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) => {
   const [rememberPayment, setRememberPayment] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Validate single field
   const validateField = (name, value) => {
     let error = "";
 
@@ -50,16 +48,13 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
     setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
-  // Handle change with real-time validation
   const handleChange = (e) => {
     const { name, value } = e.target;
-    onChange(e); // update parent formData
-    validateField(name, value); // validate immediately
+    onChange(e);
+    validateField(name, value);
   };
 
-  // Final validation before Pay
   const handlePay = () => {
-    // check all fields one more time
     let isValid = true;
     ["nameOnCard", "cardNumber", "expiry", "cvv"].forEach((field) => {
       validateField(field, formData[field] || "");
@@ -77,13 +72,11 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
         <h2 className="text-2xl font-bold mb-4 text-center">Payment Details</h2>
         <p className="mb-4 text-center font-semibold">Total Amount: Rs {amount}.00</p>
 
-        {/* Payment images */}
         <div className="flex justify-center gap-4 mb-4">
           <img src="/images/visa.png" alt="Visa" className="h-10" />
           <img src="/images/mastercard.png" alt="MasterCard" className="h-10" />
         </div>
 
-        {/* Name on Card */}
         <input
           name="nameOnCard"
           placeholder="Name on Card"
@@ -93,7 +86,6 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
         />
         {errors.nameOnCard && <p className="text-red-600 text-sm mb-2">{errors.nameOnCard}</p>}
 
-        {/* Card Number */}
         <input
           name="cardNumber"
           placeholder="Card Number"
@@ -104,7 +96,6 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
         />
         {errors.cardNumber && <p className="text-red-600 text-sm mb-2">{errors.cardNumber}</p>}
 
-        {/* Expiry & CVV */}
         <div className="flex gap-4 mb-1">
           <input
             name="expiry"
@@ -125,7 +116,6 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
         {errors.expiry && <p className="text-red-600 text-sm mb-1">{errors.expiry}</p>}
         {errors.cvv && <p className="text-red-600 text-sm mb-2">{errors.cvv}</p>}
 
-        {/* Remember payment */}
         <label className="flex items-center gap-2 mb-4">
           <input
             type="checkbox"
@@ -136,13 +126,12 @@ const PaymentForm = ({ amount, formData, onChange, onPay, loading, message }) =>
           Remember my payment details for next time
         </label>
 
-        {/* Pay button */}
         <button
           onClick={handlePay}
           disabled={loading}
           className="w-full bg-[#1E40AF] hover:bg-[#2563EB] text-white font-semibold py-2 rounded-lg transition-colors"
         >
-          {loading ? "Sending OTP..." : "Pay"}
+          {loading ? "Processing..." : "Pay"}
         </button>
 
         {message && <p className="mt-3 text-red-600 text-center">{message}</p>}

@@ -10,7 +10,8 @@ const DELIVERY_FEE = 300;
 
 const OtpVerificationPage = () => {
   const navigate = useNavigate();
-  const { orderID, amount, userEmail } = useLocation().state || {};
+  const location = useLocation();
+  const { orderID, amount, userEmail, paymentData } = location.state || {};
   
   // Use environment variable for API base URL
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
@@ -57,8 +58,8 @@ const OtpVerificationPage = () => {
     });
   };
 
-  //  Generate PDF Invoice 
-  const generatePdf = async (order) => {
+  //  Generate PDF Invoice with Payment Details
+  const generatePdf = async (order, payment) => {
     try {
       const doc = new jsPDF();
 
@@ -75,7 +76,7 @@ const OtpVerificationPage = () => {
       // Header
       doc.setFontSize(18);
       doc.setTextColor("#1E40AF");
-      doc.text("Invoice", 105, 20, { align: "center" });
+      doc.text("Payment Receipt", 105, 20, { align: "center" });
 
       // Website info
       doc.setFontSize(12);
@@ -113,11 +114,15 @@ const OtpVerificationPage = () => {
       doc.text("Payment Details:", 14, 94);
       doc.setFontSize(12);
       doc.setTextColor(0);
-      doc.text(`Payment Method: ${order.paymentMethod || 'N/A'}`, 14, 101);
-      doc.text(`Payment Status: ${order.paymentStatus || 'N/A'}`, 14, 108);
-      doc.text(`Subtotal: Rs.${(order.totalAmount - DELIVERY_FEE) || 0}`, 14, 115);
-      doc.text(`Delivery Fee: Rs.${DELIVERY_FEE}`, 14, 122);
-      doc.text(`Total Amount: Rs.${order.totalAmount || 0}`, 14, 129);
+      
+      // Payment details
+      doc.text(`Payment ID: ${payment?.paymentID || 'N/A'}`, 14, 101);
+      doc.text(`Transaction ID: ${payment?.transactionID || 'N/A'}`, 14, 108);
+      doc.text(`Payment Method: ${order.paymentMethod || 'Online Payment'}`, 14, 115);
+      doc.text(`Payment Status: ${payment?.status || 'Success'}`, 14, 122);
+      doc.text(`Subtotal: Rs.${(order.totalAmount - DELIVERY_FEE) || 0}`, 14, 129);
+      doc.text(`Delivery Fee: Rs.${DELIVERY_FEE}`, 14, 136);
+      doc.text(`Total Amount: Rs.${order.totalAmount || 0}`, 14, 143);
 
       // Table of items
       const tableColumn = ["Product", "Quantity", "Price", "Total"];
@@ -140,7 +145,7 @@ const OtpVerificationPage = () => {
       autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
-        startY: 140,
+        startY: 150,
         theme: "grid",
         headStyles: { fillColor: "#1E40AF", textColor: 255 },
         alternateRowStyles: { fillColor: "#F3F4F6" },
@@ -149,7 +154,7 @@ const OtpVerificationPage = () => {
       // Footer
       doc.setFontSize(12);
       doc.setTextColor(0);
-      const finalY = doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 140;
+      const finalY = doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 150;
       doc.text(
         "Thank you for your purchase!",
         105,
@@ -158,7 +163,7 @@ const OtpVerificationPage = () => {
       );
 
       // Save the PDF instead of opening in new tab
-      doc.save(`invoice_${order._id}.pdf`);
+      doc.save(`payment_receipt_${payment?.paymentID || order._id}.pdf`);
     } catch (error) {
       console.error("Error in PDF generation:", error);
       throw error; // Re-throw to be caught by the caller
@@ -172,28 +177,58 @@ const OtpVerificationPage = () => {
       setMessage("");
       const token = await getAuth().currentUser.getIdToken();
 
-      // Verify OTP and update paymentStatus
-      const res = await axios.post(
-        `${API_BASE_URL}/orders/verify-otp`,
-        { orderID, otp },
+      console.log("=== OTP Verification Debug Info ===");
+      console.log("userEmail:", userEmail);
+      console.log("otp:", otp);
+
+      // First verify OTP using the server endpoint
+      const otpRes = await axios.post(
+        `${API_BASE_URL}/verify-otp`,
+        { email: userEmail, otp },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const order = res.data.order; // backend should return updated order with paymentStatus
+      console.log("OTP verification response:", otpRes.data);
 
-      // Generate PDF with error handling
-      try {
-        await generatePdf(order);
-      } catch (pdfError) {
-        console.error("PDF generation error:", pdfError);
-        // Continue with navigation even if PDF generation fails
-        alert("Payment successful, but there was an issue generating the invoice.");
-      }
+      // Get the verified order ID
+      const verifiedOrderID = otpRes.data.orderID;
+      
+      console.log("Verified order ID:", verifiedOrderID);
+      
+      // Fetch the order details
+      const orderRes = await axios.get(`${API_BASE_URL}/orders/${verifiedOrderID}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const order = orderRes.data.order;
+      
+      console.log("Order details:", order);
 
-      alert("Payment Successful! Invoice downloaded.");
-      // Navigate to home page instead of /success since that route doesn't exist
-      navigate("/");
+      // Update order payment status to "Paid"
+      const updateRes = await axios.put(`${API_BASE_URL}/orders/${verifiedOrderID}`, {
+        paymentStatus: "Paid"
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      console.log("Order update response:", updateRes.data);
+
+      // Navigate to success page with order and payment data
+      navigate("/success", { 
+        state: { 
+          order,
+          userEmail,
+          paymentData: { 
+            paymentID: "DEMO-" + Date.now(),
+            transactionID: "TXN-" + Date.now(),
+            amount: order.totalAmount,
+            status: "success",
+            paidAt: new Date()
+          }
+        } 
+      });
     } catch (err) {
+      console.error("OTP verification error:", err);
       setMessage(err.response?.data?.message || "OTP verification failed.");
     }
   };

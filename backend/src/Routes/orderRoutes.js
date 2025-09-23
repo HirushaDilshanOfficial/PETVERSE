@@ -6,6 +6,7 @@ import {
   getUserOrders,
   verifyOtp,
   resendOtp,
+  updateOrder, // Add this import
 } from "../Controllers/orderController.js";
 import { requireAuth } from "../Middleware/auth.js";
 
@@ -16,6 +17,9 @@ router.post("/", requireAuth, createOrder);
 
 // Get order by ID
 router.get("/:id", requireAuth, getOrderById);
+
+// Update order
+router.put("/:id", requireAuth, updateOrder); // Add this route
 
 // Verify OTP after payment
 router.post("/verify-otp", requireAuth, verifyOtp);

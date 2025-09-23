@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router";
+import { getAuth } from "firebase/auth";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -43,20 +44,14 @@ const validateOTP = (otp) => {
   return /^\d{6}$/.test(otp);
 };
 
-const PaymentForm = ({ orderID, amount, userEmail }) => {
-  const [formData, setFormData] = useState({
-    nameOnCard: "",
-    cardNumber: "",
-    expiry: "", // Will now store date in YYYY-MM-DD format
-    cvv: "",
-    rememberCard: false,
-  });
-
+const PaymentForm = (props) => {
+  const { amount, formData, onChange, onPay, loading: parentLoading, message: parentMessage, userEmail, orderID } = props;
+  
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState(parentMessage || ""); // Add local message state
+  const [localLoading, setLocalLoading] = useState(parentLoading || false); // Add local loading state
 
   const navigate = useNavigate();
 
@@ -81,9 +76,12 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
         break;
     }
 
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : filteredValue,
+    // Use the onChange prop to update formData
+    onChange({
+      target: {
+        name,
+        value: type === "checkbox" ? checked : filteredValue,
+      },
     });
 
     // Clear error for this field when user starts typing
@@ -285,9 +283,14 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
       return;
     }
 
-    setLoading(true);
+    setLocalLoading(true);
     setMessage("");
     try {
+      // Make sure both orderID and userEmail are provided
+      if (!orderID || !userEmail) {
+        throw new Error("Missing order ID or user email");
+      }
+      
       await axios.post(`${API_BASE_URL}/send-otp`, {
         email: userEmail,
         orderID,
@@ -295,9 +298,9 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
       setOtpSent(true);
       setMessage("OTP sent to your email.");
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to send OTP.");
+      setMessage(err.response?.data?.message || err.message || "Failed to send OTP.");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -308,32 +311,47 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
       return;
     }
 
-    setLoading(true);
+    setLocalLoading(true);
     setMessage("");
     try {
-      const res = await axios.post(`${API_BASE_URL}/orders/verify-otp`, {
-        orderID,
+      // Use the correct endpoint for OTP verification
+      const token = await getAuth().currentUser.getIdToken();
+      const res = await axios.post(`${API_BASE_URL}/verify-otp`, {
+        email: userEmail,
         otp,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       
-      const { order } = res.data;
+      // Get the order ID from the response
+      const { orderID: verifiedOrderID } = res.data;
+      
+      // Fetch the order details
+      const orderRes = await axios.get(`${API_BASE_URL}/orders/${verifiedOrderID}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const order = orderRes.data.order;
       setMessage(res.data.message || "OTP verified!");
       
-      // Generate PDF with error handling
-      try {
-        await generatePdf(order);
-      } catch (pdfError) {
-        console.error("PDF generation error:", pdfError);
-        // Continue with navigation even if PDF generation fails
-        alert("Payment successful, but there was an issue generating the invoice.");
-      }
-      
-      // Navigate to home page instead of /order-success since that route doesn't exist
-      navigate("/");
+      // Navigate to success page with order and payment data
+      navigate("/success", { 
+        state: { 
+          order,
+          userEmail,
+          paymentData: { 
+            paymentID: "DEMO-" + Date.now(),
+            transactionID: "TXN-" + Date.now(),
+            amount: order.totalAmount,
+            status: "success",
+            paidAt: new Date()
+          }
+        } 
+      });
     } catch (err) {
       setMessage(err.response?.data?.message || "OTP verification failed.");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -377,7 +395,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
               type="text"
               name="nameOnCard"
               placeholder="Name on card"
-              value={formData.nameOnCard}
+              value={formData.nameOnCard || ""}
               onChange={handleInputChange}
               className={`w-full border-b p-2 outline-none ${errors.nameOnCard ? 'border-red-500' : ''}`}
               required
@@ -390,7 +408,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
               type="text"
               name="cardNumber"
               placeholder="Card Number"
-              value={formData.cardNumber}
+              value={formData.cardNumber || ""}
               onChange={handleInputChange}
               className={`w-full border-b p-2 outline-none ${errors.cardNumber ? 'border-red-500' : ''}`}
               required
@@ -403,7 +421,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
               <input
                 type="date"
                 name="expiry"
-                value={formData.expiry}
+                value={formData.expiry || ""}
                 onChange={handleInputChange}
                 min={getMinDate()}
                 className={`w-full border-b p-2 outline-none ${errors.expiry ? 'border-red-500' : ''}`}
@@ -418,7 +436,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
                 type="password"
                 name="cvv"
                 placeholder="CVV"
-                value={formData.cvv}
+                value={formData.cvv || ""}
                 onChange={handleInputChange}
                 className={`w-full border-b p-2 outline-none ${errors.cvv ? 'border-red-500' : ''}`}
                 required
@@ -437,7 +455,7 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
             <input
               type="checkbox"
               name="rememberCard"
-              checked={formData.rememberCard}
+              checked={formData.rememberCard || false}
               onChange={handleInputChange}
               className="h-4 w-4 text-[#F97316] focus:ring-[#F97316]"
             />
@@ -446,10 +464,10 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
           
           <button
             type="submit"
-            disabled={loading}
+            disabled={localLoading}
             className="w-full bg-[#1E40AF] text-white py-3 rounded-xl font-semibold hover:bg-[#1E3A8A] transition disabled:opacity-50"
           >
-            {loading ? "Sending OTP..." : "Pay"}
+            {localLoading ? "Sending OTP..." : "Pay"}
           </button>
         </form>
       ) : (
@@ -467,17 +485,17 @@ const PaymentForm = ({ orderID, amount, userEmail }) => {
           
           <button
             onClick={handleVerifyOTP}
-            disabled={loading}
+            disabled={localLoading}
             className="w-full bg-[#1E40AF] text-white py-3 rounded-xl font-semibold hover:bg-[#1E3A8A] transition disabled:opacity-50"
           >
-            {loading ? "Verifying OTP..." : "Verify OTP"}
+            {localLoading ? "Verifying OTP..." : "Verify OTP"}
           </button>
         </div>
       )}
 
-      {message && (
-        <p className={`mt-4 text-center text-sm font-medium ${message.includes('error') || message.includes('failed') || message.includes('Failed') ? 'text-red-500' : 'text-gray-700'}`}>
-          {message}
+      {(message || parentMessage) && (
+        <p className={`mt-4 text-center text-sm font-medium ${(message || parentMessage).includes('error') || (message || parentMessage).includes('failed') || (message || parentMessage).includes('Failed') ? 'text-red-500' : 'text-gray-700'}`}>
+          {message || parentMessage}
         </p>
       )}
     </div>
