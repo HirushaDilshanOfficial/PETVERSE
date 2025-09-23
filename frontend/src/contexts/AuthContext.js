@@ -6,6 +6,7 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import app from "../config/firebase";
 
@@ -69,8 +70,20 @@ export const AuthProvider = ({ children }) => {
         },
       });
 
+      console.log("AuthContext - signin response:", res.data);
+
+      // Check if service provider is verified
+      const user = res.data.user;
+      if (user.role === "serviceProvider" && !user.verification?.isVerified) {
+        // If service provider is not verified, throw an error
+        throw new Error(
+          "Your account is pending verification. Please wait for admin approval."
+        );
+      }
+
       // Set user data
-      setUser(res.data.user || null);
+      setUser(user || null);
+      console.log("AuthContext - setUser called with:", user || null);
       return res.data;
     } catch (err) {
       const errorMessage =
@@ -90,6 +103,25 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
     } catch (err) {
       console.error("Error signing out:", err);
+      throw err;
+    }
+  };
+
+  // Forgot password function
+  const forgotPassword = async (email) => {
+    try {
+      setError(null);
+      setLoading(true);
+      await sendPasswordResetEmail(auth, email);
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to send reset email";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -113,13 +145,31 @@ export const AuthProvider = ({ children }) => {
               Authorization: `Bearer ${idToken}`,
             },
           });
-          setUser(res.data.user || null);
+          console.log("AuthContext - fetchUser response:", res.data);
+
+          // Check if service provider is verified
+          const user = res.data.user;
+          if (
+            user.role === "serviceProvider" &&
+            !user.verification?.isVerified
+          ) {
+            // If service provider is not verified, sign them out
+            console.log("Service provider not verified, signing out");
+            await signout();
+            setUser(null);
+            return;
+          }
+
+          setUser(user || null);
+          console.log("AuthContext - setUser called with:", user || null);
         } else {
           setUser(null);
+          console.log("AuthContext - setUser called with: null");
         }
       } catch (err) {
         console.error("Error fetching user:", err);
         setUser(null);
+        console.log("AuthContext - setUser called with: null (error)");
       } finally {
         setLoading(false);
       }
@@ -137,6 +187,7 @@ export const AuthProvider = ({ children }) => {
         error,
         signin,
         signout,
+        forgotPassword, // Add forgotPassword to the context value
         clearError,
         isPetOwner: (user) => isPetOwner(user),
       }}

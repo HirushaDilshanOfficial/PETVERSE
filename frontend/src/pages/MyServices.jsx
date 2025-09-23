@@ -68,7 +68,7 @@ const MyServices = () => {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">My Services</h1>
         <Link
-          to="/create/select"
+          to="/services/create/select"
           className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-orange-500"
         >
           Add New Service
@@ -105,7 +105,7 @@ const MyServices = () => {
 
               <div className="mt-4 flex gap-2">
                 <Link
-                  to={`/service/${service._id}/edit`}
+                  to={`/services/${service._id}/edit`}
                   className="btn btn-sm btn-outline border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
                 >
                   Edit

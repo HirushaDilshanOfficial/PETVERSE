@@ -1,11 +1,12 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom"; // Add useNavigate
 import { useAuth } from "../../contexts/AuthContext";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { forgotPassword, loading, error, clearError } = useAuth();
+  const navigate = useNavigate(); // Add navigate hook
 
   const handleChange = (e) => {
     setEmail(e.target.value);
@@ -23,6 +24,18 @@ const ForgotPassword = () => {
     }
   };
 
+  // Add useEffect to handle automatic redirect after 3 seconds
+  useEffect(() => {
+    if (isSubmitted) {
+      const timer = setTimeout(() => {
+        navigate("/login");
+      }, 3000);
+
+      // Cleanup timer if component unmounts
+      return () => clearTimeout(timer);
+    }
+  }, [isSubmitted, navigate]);
+
   if (isSubmitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -39,6 +52,10 @@ const ForgotPassword = () => {
               We've sent a password reset link to:
             </p>
             <p className="text-lg font-medium text-blue-600 mb-6">{email}</p>
+            {/* Add auto-redirect message */}
+            <p className="text-gray-500">
+              Redirecting to login page in 3 seconds...
+            </p>
           </div>
 
           <div className="bg-white rounded-lg shadow-lg p-8">
@@ -228,7 +245,7 @@ const ForgotPassword = () => {
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            © 2024 PETVERSE. All rights reserved.
+            © 2025 PETVERSE. All rights reserved.
           </p>
         </div>
       </div>

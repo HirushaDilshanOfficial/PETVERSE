@@ -6,10 +6,12 @@ import CartPage from "./pages/CartPage.jsx";
 import { CartProvider } from "./contexts/CartContext";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
 import PaymentPage from "./pages/PaymentPage.jsx";
+import BankTransferPage from "./Pages/BankTransferPage.jsx";
 // Import Home component
 import Home from "./pages/Home.jsx";
 // Import auth components
 import Login from "./pages/auth/Login.js";
+import AdminLogin from "./pages/auth/AdminLogin.js";
 import RoleSelection from "./pages/auth/RoleSelection.js";
 import PetOwnerSignup from "./pages/auth/PetOwnerSignup.js";
 import ServiceProviderSignup from "./pages/auth/ServiceProviderSignup.js";
@@ -46,32 +48,32 @@ import ProtectedRoute, {
 import ServicePage from "./pages/ServicePage";
 import CreatePage from "./pages/CreateService";
 import SelectServiceCategory from "./pages/SelectServiceCategory";
-import ServicePdashboard from "./pages/ServicePdashboard";
+import ServicePdashboard from "./Pages/ServicePdashboard";
 import MyServices from "./pages/MyServices";
 import EditService from "./pages/EditService";
+import ServiceReviewPage from "./Pages/ServiceReviewPage";
 import Navbar from "./Components/Navbar";
 
 function App() {
   return (
     <CartProvider>
       <Routes>
-        {/* Existing routes */}
+        {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/test" element={<TestPage />} />
         <Route path="/products" element={<ProductPage />} />
         <Route path="/products/:id" element={<ProductDetailedPage />} />
-        <Route
-          path="/cart"
-          element={
-            <PetOwnerRoute>
-              <CartPage />
-            </PetOwnerRoute>
-          }
-        />
-        <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/payment" element={<PaymentPage />} />
+        <Route path="/services" element={<ServicePage />} />
+        <Route path="/service/:id" element={<ServiceDetailPage />} />
+        <Route path="/service/:id/review" element={<ServiceReviewPage />} />
+        <Route path="/contactus" element={<Contactus />} />
+        <Route path="/TestAdmin" element={<TestAdmin />} />
+        <Route path="/TestHome" element={<TestHome />} />
+        <Route path="/TestProvider" element={<TestProvider />} />
+
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/signup" element={<RoleSelection />} />
         <Route path="/signup/petOwner" element={<PetOwnerSignup />} />
         <Route
@@ -79,6 +81,7 @@ function App() {
           element={<ServiceProviderSignup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+
         {/* Protected Dashboard Routes */}
         <Route
           path="/dashboard/pet-owner/profile"
@@ -96,6 +99,7 @@ function App() {
             </ServiceProviderRoute>
           }
         />
+
         {/* Admin Routes with Layout */}
         <Route
           path="/admin"
@@ -112,25 +116,13 @@ function App() {
           <Route path="analytics" element={<AnalysisPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
-        {/* Additional Routes */}
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/service/:id" element={<ServiceDetailPage />} />
-        <Route path="/ServiceDetailPage" element={<ServiceDetailPage />} />
-        <Route path="/contactus" element={<Contactus />} />
-        <Route path="/TestAdmin" element={<TestAdmin />} />
-        <Route path="/TestHome" element={<TestHome />} />
-        <Route path="/TestProvider" element={<TestProvider />} />
-        {/* Redirect dashboard to appropriate role-based dashboard */}
-        <Route path="/dashboard" element={<DashboardRedirect />} />
 
-        {/* Service-related routes from App.jsx */}
-        <Route path="/services" element={<ServicePage />} />
+        {/* Service-related routes */}
         <Route path="/services/create" element={<CreatePage />} />
         <Route
           path="/services/create/select"
           element={<SelectServiceCategory />}
         />
-        <Route path="/services/:id" element={<ServiceDetailPage />} />
         <Route
           path="/dashboard/service-provider/services"
           element={<ServicePdashboard />}
@@ -140,6 +132,22 @@ function App() {
           element={<MyServices />}
         />
         <Route path="/services/:id/edit" element={<EditService />} />
+
+        {/* Redirect dashboard to appropriate role-based dashboard */}
+        <Route path="/dashboard" element={<DashboardRedirect />} />
+
+        {/* Cart and Checkout Routes */}
+        <Route
+          path="/cart"
+          element={
+            <PetOwnerRoute>
+              <CartPage />
+            </PetOwnerRoute>
+          }
+        />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/payment" element={<PaymentPage />} />
+        <Route path="/bank-transfer" element={<BankTransferPage />} />
       </Routes>
     </CartProvider>
   );

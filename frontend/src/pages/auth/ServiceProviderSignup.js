@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import axios from "axios";
 
 const ServiceProviderSignup = () => {
   const [formData, setFormData] = useState({
@@ -17,6 +18,8 @@ const ServiceProviderSignup = () => {
   });
 
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const businessTypes = [
     "Veterinary Clinic",
@@ -63,7 +66,7 @@ const ServiceProviderSignup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [previews, setPreviews] = useState({});
-  const { signup, loading, error, clearError } = useAuth();
+  const { clearError } = useAuth();
   const navigate = useNavigate();
 
   // Handle file changes for document uploads
@@ -107,6 +110,11 @@ const ServiceProviderSignup = () => {
           }));
         };
         reader.readAsDataURL(file);
+
+        // Clear error for this field when user selects a file
+        if (errors[name]) {
+          setErrors((prev) => ({ ...prev, [name]: "" }));
+        }
       }
     }
   };
@@ -238,12 +246,15 @@ const ServiceProviderSignup = () => {
       if (error) newErrors[key] = error;
     });
 
-    // Check required files
-    if (!files.nicFrontPhoto || !files.nicBackPhoto || !files.facePhoto) {
-      alert(
-        "Please upload all required documents (NIC front, NIC back, and face photo)"
-      );
-      return;
+    // Check if required files are uploaded
+    if (!files.nicFrontPhoto) {
+      newErrors.nicFrontPhoto = "NIC front photo is required";
+    }
+    if (!files.nicBackPhoto) {
+      newErrors.nicBackPhoto = "NIC back photo is required";
+    }
+    if (!files.facePhoto) {
+      newErrors.facePhoto = "Face photo is required";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -252,71 +263,195 @@ const ServiceProviderSignup = () => {
     }
 
     try {
-      console.log(
-        "🔥 Starting service provider registration with file upload..."
-      );
+      console.log("🔥 Starting service provider registration...");
 
-      // Step 1: Create user account
-      const signupResult = await signup(
+      setLoading(true);
+      setError(null);
+
+      // Step 1: Create user account via Firebase Authentication
+      const { getAuth, createUserWithEmailAndPassword } = await import(
+        "firebase/auth"
+      );
+      const app = (await import("../../config/firebase")).default;
+      const auth = getAuth(app);
+
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
         formData.email,
-        formData.password,
-        formData
+        formData.password
       );
-      console.log("✅ User account created successfully");
+      const firebaseUser = userCredential.user;
+      const firebaseUid = firebaseUser.uid;
 
-      // Step 2: Upload documents to Cloudinary via backend API
-      console.log("📤 Uploading documents to Cloudinary...");
+      // Step 2: Register user in our backend
+      const API_BASE_URL =
+        import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
-      // Get the user ID from signup result or fetch current user profile
-      const userId = signupResult.backendUser._id;
+      // Prepare user data for backend registration
+      const userData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        role: formData.role,
+        address: formData.address,
+        nicNumber: formData.nicNumber,
+        firebaseUid: firebaseUid,
+      };
 
-      // Create FormData for file upload
-      const uploadFormData = new FormData();
-      uploadFormData.append("nicFront", files.nicFrontPhoto);
-      uploadFormData.append("nicBack", files.nicBackPhoto);
-      uploadFormData.append("facePhoto", files.facePhoto);
+      const registerResponse = await axios.post(
+        `${API_BASE_URL}/auth/register`,
+        userData
+      );
+
+      console.log(
+        "✅ User account created successfully",
+        registerResponse.data
+      );
+
+      // Step 3: Upload documents to backend
+      console.log("📤 Uploading documents...");
+      const userId = registerResponse.data.user._id;
+
+      // Get Firebase ID token for authentication
+      const idToken = await firebaseUser.getIdToken();
+
+      // Create FormData for document upload
+      const documentData = new FormData();
+      documentData.append("nicFront", files.nicFrontPhoto);
+      documentData.append("nicBack", files.nicBackPhoto);
+      documentData.append("facePhoto", files.facePhoto);
 
       // Add business documents if any
-      if (files.businessDocuments && files.businessDocuments.length > 0) {
-        files.businessDocuments.forEach((file) => {
-          uploadFormData.append("businessDocuments", file);
-        });
-      }
+      files.businessDocuments.forEach((file) => {
+        documentData.append("businessDocuments", file);
+      });
 
-      // Get current user's Firebase token
-      const user = signupResult.firebaseUser;
-      const token = await user.getIdToken();
-
-      // Upload documents to backend (which will upload to Cloudinary)
-      const uploadResponse = await fetch(
-        `http://localhost:4000/api/auth/service-provider/${userId}/documents`,
+      // Upload documents with proper authentication
+      await axios.post(
+        `${API_BASE_URL}/auth/service-provider/${userId}/documents`,
+        documentData,
         {
-          method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${idToken}`,
           },
-          body: uploadFormData,
         }
       );
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.message || "Document upload failed");
-      }
+      console.log("✅ Documents uploaded successfully");
 
-      const uploadResult = await uploadResponse.json();
-      console.log("✅ Documents uploaded successfully:", uploadResult);
-
-      // Success - navigate to login page with success message
+      // Success - show notification and navigate to login page
       console.log("🎉 Service provider registration completed successfully!");
-      alert(
-        "Registration successful! Your account has been created and documents uploaded. Please login to continue."
+
+      // Show success notification
+      showNotification(
+        "Registration successful! Your account has been created and documents uploaded. Please wait for admin verification before logging in.",
+        "success"
       );
-      navigate("/login");
+
+      // Redirect to login page after 3 seconds
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
     } catch (err) {
       console.error("Registration failed:", err);
-      alert(`Registration failed: ${err.message}`);
+      setError(err.message);
+      showNotification(`Registration failed: ${err.message}`, "error");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Function to show notification
+  const showNotification = (message, type = "success") => {
+    // Create notification container if it doesn't exist
+    let container = document.getElementById("notification-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "notification-container";
+      container.style.position = "fixed";
+      container.style.top = "20px";
+      container.style.right = "20px";
+      container.style.zIndex = "9999";
+      document.body.appendChild(container);
+    }
+
+    // Create notification element
+    const notification = document.createElement("div");
+    notification.style.backgroundColor =
+      type === "success" ? "#10B981" : "#EF4444";
+    notification.style.color = "white";
+    notification.style.padding = "16px 24px";
+    notification.style.borderRadius = "8px";
+    notification.style.marginBottom = "12px";
+    notification.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+    notification.style.display = "flex";
+    notification.style.alignItems = "center";
+    notification.style.minWidth = "300px";
+    notification.style.transform = "translateX(100%)";
+    notification.style.transition = "transform 0.3s ease-in-out";
+    notification.style.opacity = "0";
+
+    // Add icon based on type
+    const icon = document.createElement("span");
+    icon.style.marginRight = "12px";
+    icon.style.fontSize = "20px";
+    icon.innerHTML = type === "success" ? "✅" : "❌";
+    notification.appendChild(icon);
+
+    // Add message
+    const messageElement = document.createElement("span");
+    messageElement.textContent = message;
+    notification.appendChild(messageElement);
+
+    // Add close button
+    const closeBtn = document.createElement("button");
+    closeBtn.innerHTML = "×";
+    closeBtn.style.background = "none";
+    closeBtn.style.border = "none";
+    closeBtn.style.color = "white";
+    closeBtn.style.fontSize = "20px";
+    closeBtn.style.fontWeight = "bold";
+    closeBtn.style.marginLeft = "16px";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.padding = "0";
+    closeBtn.style.width = "24px";
+    closeBtn.style.height = "24px";
+    closeBtn.style.display = "flex";
+    closeBtn.style.alignItems = "center";
+    closeBtn.style.justifyContent = "center";
+    closeBtn.onclick = () => {
+      notification.style.transform = "translateX(100%)";
+      notification.style.opacity = "0";
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    };
+    notification.appendChild(closeBtn);
+
+    // Add to container
+    container.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+      notification.style.transform = "translateX(0)";
+      notification.style.opacity = "1";
+    }, 10);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.transform = "translateX(100%)";
+        notification.style.opacity = "0";
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+    }, 3000);
   };
 
   return (
@@ -562,7 +697,13 @@ const ServiceProviderSignup = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     NIC Front Photo *
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-400 transition-colors">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center hover:border-orange-400 transition-colors ${
+                      errors.nicFrontPhoto
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}
+                  >
                     {previews.nicFrontPhoto ? (
                       <div className="relative">
                         <img
@@ -601,6 +742,11 @@ const ServiceProviderSignup = () => {
                       Choose File
                     </label>
                   </div>
+                  {errors.nicFrontPhoto && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {errors.nicFrontPhoto}
+                    </p>
+                  )}
                 </div>
 
                 {/* NIC Back Photo */}
@@ -608,7 +754,11 @@ const ServiceProviderSignup = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     NIC Back Photo *
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-400 transition-colors">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center hover:border-orange-400 transition-colors ${
+                      errors.nicBackPhoto ? "border-red-500" : "border-gray-300"
+                    }`}
+                  >
                     {previews.nicBackPhoto ? (
                       <div className="relative">
                         <img
@@ -645,6 +795,11 @@ const ServiceProviderSignup = () => {
                       Choose File
                     </label>
                   </div>
+                  {errors.nicBackPhoto && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {errors.nicBackPhoto}
+                    </p>
+                  )}
                 </div>
 
                 {/* Face Photo */}
@@ -652,7 +807,11 @@ const ServiceProviderSignup = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Face Photo *
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-400 transition-colors">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center hover:border-orange-400 transition-colors ${
+                      errors.facePhoto ? "border-red-500" : "border-gray-300"
+                    }`}
+                  >
                     {previews.facePhoto ? (
                       <div className="relative">
                         <img
@@ -691,6 +850,11 @@ const ServiceProviderSignup = () => {
                       Choose File
                     </label>
                   </div>
+                  {errors.facePhoto && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {errors.facePhoto}
+                    </p>
+                  )}
                 </div>
               </div>
 

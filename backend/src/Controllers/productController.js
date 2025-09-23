@@ -55,6 +55,9 @@ export const getProductById = async (req, res) => {
 // Create new product
 export const createProduct = async (req, res) => {
   try {
+    console.log("📥 Creating new product with data:", req.body);
+    console.log("📁 File received:", req.file);
+
     const {
       productID,
       pName,
@@ -62,13 +65,28 @@ export const createProduct = async (req, res) => {
       pCategory,
       pPrice,
       pQuantity,
-      pImage,
       status,
     } = req.body;
+
+    // Validate required fields
+    if (
+      !productID ||
+      !pName ||
+      !pDescription ||
+      !pCategory ||
+      !pPrice ||
+      !pQuantity
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "All required fields must be provided",
+      });
+    }
 
     // Check if product with same ID already exists
     const existingProduct = await Product.findOne({ productID });
     if (existingProduct) {
+      console.log("❌ Product with ID already exists:", productID);
       return res.status(409).json({
         success: false,
         message: "Product with this ID already exists",
@@ -76,14 +94,25 @@ export const createProduct = async (req, res) => {
     }
 
     // Handle image upload if file is provided
-    let imageUrl = pImage; // Default to URL if provided
+    let imageUrl = ""; // Default to empty string
     if (req.file) {
-      // Upload file to Cloudinary
-      const uploadResult = await uploadToCloudinary(
-        req.file,
-        "petverse/products"
-      );
-      imageUrl = uploadResult.url;
+      console.log("☁️ Uploading image to Cloudinary...");
+      try {
+        // Upload file to Cloudinary
+        const uploadResult = await uploadToCloudinary(
+          req.file,
+          "petverse/products"
+        );
+        imageUrl = uploadResult.url;
+        console.log("✅ Image uploaded successfully:", imageUrl);
+      } catch (uploadError) {
+        console.error("❌ Error uploading image to Cloudinary:", uploadError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload product image",
+          error: uploadError.message,
+        });
+      }
     }
 
     // Create new product
@@ -92,14 +121,16 @@ export const createProduct = async (req, res) => {
       pName,
       pDescription,
       pCategory,
-      pPrice,
-      pQuantity,
+      pPrice: Number(pPrice),
+      pQuantity: Number(pQuantity),
       pImage: imageUrl,
-      status,
+      status: status || "Active",
     });
 
+    console.log("💾 Saving product to database...");
     // Save product to database
     const savedProduct = await newProduct.save();
+    console.log("✅ Product saved successfully:", savedProduct._id);
 
     res.status(201).json({
       success: true,
@@ -107,7 +138,7 @@ export const createProduct = async (req, res) => {
       message: "Product created successfully",
     });
   } catch (error) {
-    console.error("Error creating product:", error);
+    console.error("❌ Error creating product:", error);
     res.status(500).json({
       success: false,
       message: "Failed to create product",

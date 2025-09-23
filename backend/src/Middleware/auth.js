@@ -23,6 +23,7 @@ export const authenticateUser = async (req, res, next) => {
 
     // Find user in database
     const user = await User.findOne({ firebaseUid: decodedToken.uid });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -98,7 +99,35 @@ export const authenticateUser = async (req, res, next) => {
   }
 };
 
-// Middleware to authorize specific roles
+// Middleware to require admin role
+export const requireAdmin = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Admin requirement error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Admin requirement check failed",
+      error: error.message,
+    });
+  }
+};
+
+// Middleware to authorize roles
 export const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     try {
@@ -112,56 +141,30 @@ export const authorizeRoles = (...allowedRoles) => {
       if (!allowedRoles.includes(req.user.role)) {
         return res.status(403).json({
           success: false,
-          message: `Access denied. Required role: ${allowedRoles.join(" or ")}`,
+          message: "Access denied. Insufficient permissions.",
         });
       }
 
       next();
     } catch (error) {
-      console.error("Authorization error:", error);
+      console.error("Role authorization error:", error);
       return res.status(500).json({
         success: false,
-        message: "Authorization check failed",
+        message: "Role authorization check failed",
         error: error.message,
       });
     }
   };
 };
 
-// Middleware to ensure service provider is verified
-export const requireVerifiedServiceProvider = (req, res, next) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
-    }
+// Convenience middleware for requiring pet owner role
+export const requirePetOwner = authorizeRoles("petOwner");
 
-    if (req.user.role !== "serviceProvider") {
-      return res.status(403).json({
-        success: false,
-        message: "Only service providers can access this resource",
-      });
-    }
+// Convenience middleware for requiring service provider role
+export const requireServiceProvider = authorizeRoles("serviceProvider");
 
-    if (!req.user.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Service provider verification required",
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error("Service provider verification error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Verification check failed",
-      error: error.message,
-    });
-  }
-};
+// Convenience middleware - alias for authenticateUser
+export const requireAuth = authenticateUser;
 
 // Middleware to ensure user can only access their own resources
 export const requireResourceOwnership = (req, res, next) => {
@@ -199,25 +202,95 @@ export const requireResourceOwnership = (req, res, next) => {
   }
 };
 
-// Middleware for admin-only access
-export const requireAdmin = authorizeRoles("admin");
+// Middleware to allow service providers to upload documents before verification
+export const allowUnverifiedServiceProviderDocuments = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
 
-// Middleware for service provider access (verified or unverified)
-export const requireServiceProvider = authorizeRoles("serviceProvider");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message:
+          'No token provided or invalid format. Please provide token as "Bearer <token>"',
+      });
+    }
 
-// Middleware for pet owner access
-export const requirePetOwner = authorizeRoles("petOwner");
+    // Extract token
+    const idToken = authHeader.split(" ")[1];
 
-// Middleware for authenticated users (any role)
-export const requireAuth = authenticateUser;
+    // Verify Firebase ID token
+    const decodedToken = await verifyIdToken(idToken);
 
-export default {
-  authenticateUser,
-  authorizeRoles,
-  requireVerifiedServiceProvider,
-  requireResourceOwnership,
-  requireAdmin,
-  requireServiceProvider,
-  requirePetOwner,
-  requireAuth,
+    // Find user in database
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found in database",
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "User account is deactivated",
+      });
+    }
+
+    // For service providers, allow access even if not verified
+    // This is specifically for document upload before verification
+    if (user.role === "serviceProvider") {
+      // Attach user info to request object
+      req.user = {
+        firebaseUid: decodedToken.uid,
+        email: decodedToken.email,
+        role: user.role,
+        userId: user._id,
+        isVerified: user.verification?.isVerified || false,
+        userData: user,
+      };
+
+      // Update last login
+      await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+
+      return next();
+    }
+
+    // For non-service providers, deny access to this endpoint
+    // This endpoint is only for service providers
+    return res.status(403).json({
+      success: false,
+      message: "Access denied. This endpoint is only for service providers.",
+    });
+  } catch (error) {
+    console.error("Authentication error:", error);
+
+    // Handle specific Firebase Auth errors
+    if (error.message.includes("expired")) {
+      return res.status(401).json({
+        success: false,
+        message: "Token has expired. Please login again.",
+      });
+    }
+
+    if (error.message.includes("Invalid")) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token. Please login again.",
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
+  }
 };

@@ -130,7 +130,7 @@ const ServiceDetailPage = () => {
         to={`/service/${id}/review`}
         className="btn btn-outline flex-1"
       >
-        Write a Review
+        Write & View Reviews
       </Link>
     </div>
   </div>

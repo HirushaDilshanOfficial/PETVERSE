@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
-import { Link } from "react-router"; 
+import React, { useMemo, useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom"; // Fixed import
+import { useAuth } from "../../contexts/AuthContext";
 
 import {
   DownloadIcon,
@@ -13,39 +14,71 @@ import {
   MegaphoneIcon,
   PlusIcon,
   CheckIcon,
+  LogOutIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 const formatCurrency = (n) => {
   if (typeof n !== "number" || isNaN(n)) return "-";
   try {
-    return "Rs. " + new Intl.NumberFormat("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
+    return (
+      "Rs. " +
+      new Intl.NumberFormat("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(n)
+    );
   } catch {
     return "Rs. " + n.toFixed(2);
   }
 };
 
 const ServicePdashboard = () => {
+  const { signout, user } = useAuth(); // Added user from context
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false); // Set to false since we're not fetching data
   const [provider, setProvider] = useState({
-    name: "Service Provider",
-    email: "provider@example.com",
-    phone: "+1 (555) 123-4567",
-    location: "Colombo, LK",
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
     profileImage: "",
   });
   const [metrics, setMetrics] = useState({
-    totalServices: 5,
-    avgPrice: 75.00,
-    availabilityPct: 85,
-    appointments: 12,
-    products: 8,
-    orders: 6,
-    advertisements: 3,
+    totalServices: 0,
+    avgPrice: 0,
+    availabilityPct: 0,
+    appointments: 0,
+    products: 0,
+    orders: 0,
+    advertisements: 0,
   });
+
+  // Set provider data from user context when component mounts
+  useEffect(() => {
+    if (user) {
+      setProvider({
+        name: user.fullName || "Service Provider",
+        email: user.email || "",
+        phone: user.phoneNumber || "",
+        location: user.address || "Sri Lanka",
+        profileImage: user.profilePicture || "",
+      });
+    }
+  }, [user]);
+
+  const handleLogout = async () => {
+    try {
+      setLoading(true);
+      await signout();
+      // Navigate to home page after logout with fromLogout state
+      navigate("/", { state: { fromLogout: true } });
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Failed to logout");
+      setLoading(false);
+    }
+  };
 
   // No API calls - using static data for display only
 
@@ -122,45 +155,49 @@ const ServicePdashboard = () => {
 
   return (
     <div className="min-h-screen bg-base-200">
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="relative">
+              <PackageIcon className="text-[#F97316] w-16 h-16 animate-bounce" />
+              <div className="absolute inset-0 bg-[#F97316] opacity-30 rounded-full animate-ping"></div>
+            </div>
+            <p className="text-white mt-4 font-medium">Logging out...</p>
+          </div>
+        </div>
+      )}
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex w-64 min-h-screen sticky top-0 flex-col border-r bg-[#1E40AF]">
           <div className="p-4 border-b border-white/20">
-            <h2 className="font-bold text-lg text-white">
-              Provider Dashboard
-            </h2>
+            <h2 className="font-bold text-lg text-white">Provider Dashboard</h2>
             <p className="text-sm text-white/70">
               Manage your services and sales
             </p>
           </div>
 
           <nav className="p-2 space-y-1">
-            <div
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer"
-            >
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer">
               <CalendarDaysIcon className="size-4" />
               <span>Appointments</span>
             </div>
-            <div
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer"
-            >
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer">
               <PackageIcon className="size-4" />
               <span>Products</span>
             </div>
-            <div
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer"
-            >
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer">
               <ShoppingCartIcon className="size-4" />
               <span>Orders</span>
             </div>
-            <div
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors cursor-pointer"
+            <Link
+              to="/TestProvider"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors"
             >
               <MegaphoneIcon className="size-4" />
               <span>Advertisements</span>
-            </div>
+            </Link>
             <Link
-              to="/my-services"
+              to="/dashboard/service-provider/my-services"
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-[#F97316] transition-colors"
             >
               <PackageIcon className="size-4" />
@@ -173,6 +210,13 @@ const ServicePdashboard = () => {
               <UserIcon className="size-4" />
               <span>My Profile</span>
             </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-white hover:bg-red-600 transition-colors w-full text-left mt-auto"
+            >
+              <LogOutIcon className="size-4" />
+              <span>Logout</span>
+            </button>
           </nav>
 
           <div className="mt-auto p-4 border-t border-white/20 text-white">
@@ -222,7 +266,7 @@ const ServicePdashboard = () => {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        (provider.name || 'U').charAt(0)
+                        (provider.name || "U").charAt(0)
                       )}
                     </div>
                     <div className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
@@ -233,24 +277,26 @@ const ServicePdashboard = () => {
                     <div className="text-white text-3xl md:text-4xl font-bold leading-tight">
                       {provider.name}
                     </div>
-                    <div className="text-white/80">Professional Pet Care Provider</div>
+                    <div className="text-white/80">
+                      Professional Pet Care Provider
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link
-                    to="/create/select"
+                    to="/services/create"
                     className="px-4 py-2 text-sm md:text-base font-medium rounded-lg text-white bg-[#1E40AF] border border-[#1E40AF] border-t-4 transition-all duration-200 hover:bg-[#F97316] hover:border-[#F97316] hover:shadow-lg hover:-translate-y-0.5 flex items-center gap-2"
                   >
                     <PlusIcon className="size-4" />
                     Add New Service
                   </Link>
-                  
+
                   <button
-                  onClick={downloadReport}
-                  className="btn btn-outline gap-2 bg-white/90 text-[#1E40AF] border-white hover:bg-[#F97316]"
+                    onClick={downloadReport}
+                    className="btn btn-outline gap-2 bg-white/90 text-[#1E40AF] border-white hover:bg-[#F97316]"
                   >
-                  <DownloadIcon className="size-4" />
-                  Download Report
+                    <DownloadIcon className="size-4" />
+                    Download Report
                   </button>
                 </div>
               </div>
@@ -268,19 +314,19 @@ const ServicePdashboard = () => {
                     Boost Your Business
                   </h3>
                   <p className="text-base-content/70 mb-6">
-                    Create eye-catching advertisements to attract more customers to
-                    your services.
+                    Create eye-catching advertisements to attract more customers
+                    to your services.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
                     <Link
-                      to="/create/select"
+                      to="/services/create"
                       className="flex-1 px-4 py-2 text-sm md:text-base font-medium rounded-lg text-white bg-[#1E40AF] border border-[#1E40AF] border-t-4 transition-all duration-200 hover:bg-[#F97316] hover:border-[#F97316] hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
                     >
                       <PlusIcon className="size-4" />
                       Create New Service
                     </Link>
                     <Link
-                      to="/my-services"
+                      to="/dashboard/service-provider/my-services"
                       className="flex-1 px-4 py-2 text-sm md:text-base font-medium rounded-lg text-[#1E40AF] bg-white border border-[#1E40AF] border-t-4 transition-all duration-200 hover:bg-[#F97316] hover:text-white hover:border-[#F97316] hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
                     >
                       View All Services

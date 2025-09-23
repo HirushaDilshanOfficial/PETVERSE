@@ -9,6 +9,28 @@ const TIERS = [
   { key: 'premium', label: 'Premium' },
   { key: 'luxury', label: 'Luxury' },
 ];
+
+// Validation functions
+const validateTitle = (title) => {
+  // Only allow letters and spaces
+  return /^[a-zA-Z\s]*$/.test(title);
+};
+
+const validatePrice = (price) => {
+  // Only allow numbers
+  return /^\d*\.?\d*$/.test(price);
+};
+
+const validateDuration = (duration) => {
+  // Allow letters and numbers only (no special characters)
+  return /^[a-zA-Z0-9\s]*$/.test(duration);
+};
+
+const validateServiceIncluded = (service) => {
+  // Allow letters and digits only
+  return /^[a-zA-Z0-9\s]*$/.test(service);
+};
+
 //creating a service
 const CreateService = () => {
   const [searchParams] = useSearchParams();
@@ -20,6 +42,7 @@ const CreateService = () => {
   const [address, setAddress] = useState('');
   const [images, setImages] = useState([]); // File[]
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const [packages, setPackages] = useState(
     TIERS.map(t => ({ tier: t.label, price: '', duration: '', included: [], includeInput: '' }))
@@ -41,6 +64,58 @@ const CreateService = () => {
     const files = Array.from(e.target.files || []);
     setImages(files);
   };
+
+  // Handle title change with validation
+  const handleTitleChange = (value) => {
+    // Only allow letters and spaces
+    if (!validateTitle(value)) return;
+    setTitle(value);
+    
+    // Clear error when user starts typing
+    if (errors.title) {
+      setErrors(prev => ({ ...prev, title: '' }));
+    }
+  };
+
+  // Handle price change with validation
+  const handlePriceChange = (idx, value) => {
+    // Only allow numbers and decimal point
+    if (!validatePrice(value)) return;
+    updatePackageField(idx, 'price', value);
+    
+    // Clear error when user starts typing
+    const errorKey = `price-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Handle duration change with validation
+  const handleDurationChange = (idx, value) => {
+    // Allow letters and numbers only
+    if (!validateDuration(value)) return;
+    updatePackageField(idx, 'duration', value);
+    
+    // Clear error when user starts typing
+    const errorKey = `duration-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Handle service included input change with validation
+  const handleIncludeInputChange = (idx, value) => {
+    // Allow letters and digits only
+    if (!validateServiceIncluded(value)) return;
+    updatePackageField(idx, 'includeInput', value);
+    
+    // Clear error when user starts typing
+    const errorKey = `includeInput-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
 //update pack
   const updatePackageField = (idx, field, value) => {
     setPackages(prev => {
@@ -55,6 +130,14 @@ const CreateService = () => {
       const next = [...prev];
       const input = (next[idx].includeInput || '').trim();
       if (!input) return prev;
+      
+      // Validate service included before adding
+      if (!validateServiceIncluded(input)) {
+        const errorKey = `includeInput-${idx}`;
+        setErrors(prev => ({ ...prev, [errorKey]: 'Service included can only contain letters and digits' }));
+        return prev;
+      }
+      
       next[idx] = {
         ...next[idx],
         included: [...next[idx].included, input],
@@ -75,6 +158,40 @@ const CreateService = () => {
 
 const handleSubmit = async (e) => {
   e.preventDefault();
+  
+  const newErrors = {};
+  
+  // Validate title
+  if (!title.trim()) {
+    newErrors.title = "Title is required";
+  } else if (!validateTitle(title)) {
+    newErrors.title = "Title can only contain letters and spaces";
+  }
+  
+  // Validate packages
+  packages.forEach((pkg, idx) => {
+    // Validate price if provided
+    if (pkg.price && !validatePrice(pkg.price)) {
+      newErrors[`price-${idx}`] = "Price can only contain numbers";
+    }
+    
+    // Validate duration if provided
+    if (pkg.duration && !validateDuration(pkg.duration)) {
+      newErrors[`duration-${idx}`] = "Duration can only contain letters and numbers";
+    }
+    
+    // Validate includeInput if provided
+    if (pkg.includeInput && !validateServiceIncluded(pkg.includeInput)) {
+      newErrors[`includeInput-${idx}`] = "Service included can only contain letters and digits";
+    }
+  });
+  
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    toast.error("Please fix the validation errors");
+    return;
+  }
+  
   if (!title.trim() || !description.trim()) {
     toast.error("All fields are required");
     return;
@@ -116,7 +233,7 @@ const handleSubmit = async (e) => {
     });
 
     toast.success("Service created successfully!");
-    navigate("/");
+    navigate("/dashboard/service-provider");
   } catch (error) {
     console.log('=== FRONTEND ERROR ===');
     console.log('Error creating service:', error);
@@ -136,16 +253,16 @@ const handleSubmit = async (e) => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-3 mb-6">
-            <Link to={"/"} className="btn btn-ghost">
+            <Link to={"/dashboard/service-provider"} className="btn btn-ghost">
               <ArrowLeftIcon className="size-5" />
-              Back to Services
+              Back to Dashboard
             </Link>
           </div>
 
           {!category && (
             <div className="alert alert-warning mb-6">
               <span>Please choose a category first.</span>
-              <Link to="/create/select" className="btn btn-sm">Choose Category</Link>
+              <Link to="/services/create/select" className="btn btn-sm">Choose Category</Link>
             </div>
           )}
 
@@ -167,11 +284,12 @@ const handleSubmit = async (e) => {
                     <input
                       type="text"
                       placeholder="Service Title"
-                      className="input input-bordered"
+                      className={`input input-bordered ${errors.title ? 'input-error' : ''}`}
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => handleTitleChange(e.target.value)}
                       required
                     />
+                    {errors.title && <span className="text-red-500 text-sm mt-1">{errors.title}</span>}
                   </div>
 
                   <div className="form-control mb-4">
@@ -237,13 +355,13 @@ const handleSubmit = async (e) => {
                             <span className="label-text">Price</span>
                           </label>
                           <input
-                            type="number"
-                            min="0"
+                            type="text"
                             placeholder="0.00"
-                            className="input input-bordered"
+                            className={`input input-bordered ${errors[`price-${idx}`] ? 'input-error' : ''}`}
                             value={pkg.price}
-                            onChange={(e) => updatePackageField(idx, 'price', e.target.value)}
+                            onChange={(e) => handlePriceChange(idx, e.target.value)}
                           />
+                          {errors[`price-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`price-${idx}`]}</span>}
                         </div>
 
                         <div className="form-control">
@@ -253,11 +371,12 @@ const handleSubmit = async (e) => {
                           <input
                             type="text"
                             placeholder="e.g., 30 minutes, 1 day"
-                            className="input input-bordered"
+                            className={`input input-bordered ${errors[`duration-${idx}`] ? 'input-error' : ''}`}
                             value={pkg.duration}
-                            onChange={(e) => updatePackageField(idx, 'duration', e.target.value)}
+                            onChange={(e) => handleDurationChange(idx, e.target.value)}
                           />
-                       
+                          {errors[`duration-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`duration-${idx}`]}</span>}
+                        </div>
 
                         <div className="form-control">
                           <label className="label">
@@ -267,9 +386,9 @@ const handleSubmit = async (e) => {
                             <input
                               type="text"
                               placeholder="Add a service..."
-                              className="input input-bordered flex-1"
+                              className={`input input-bordered flex-1 ${errors[`includeInput-${idx}`] ? 'input-error' : ''}`}
                               value={pkg.includeInput}
-                              onChange={(e) => updatePackageField(idx, 'includeInput', e.target.value)}
+                              onChange={(e) => handleIncludeInputChange(idx, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -277,7 +396,6 @@ const handleSubmit = async (e) => {
                                 }
                               }}
                             />
-                             </div>
                             <button
                               type="button"
                               className="flex items-center gap-1 text-black font-medium"
@@ -287,6 +405,7 @@ const handleSubmit = async (e) => {
                               Add
                             </button>
                           </div>
+                          {errors[`includeInput-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`includeInput-${idx}`]}</span>}
 
                           {pkg.included.length > 0 && (
                             <ul className="mt-3 space-y-2">

@@ -49,13 +49,15 @@ const ServicesPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1C2A4A] py-12 px-6">
+    // Changed background color to white
+    <div className="min-h-screen bg-white py-12 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-[#F97316] mb-6">
+          // Updated text colors for better visibility on white background
+          <h1 className="text-4xl md:text-5xl font-bold text-[#1E40AF] mb-6">
             Our Services
           </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-700 max-w-3xl mx-auto">
             Discover our comprehensive range of pet care services designed to keep your furry friends healthy, happy, and well-groomed.
           </p>
         </div>
@@ -90,29 +92,30 @@ const ServicesPage = () => {
           ))}
         </div>
 
-        <div className="mt-20 bg-[#16203D] rounded-2xl p-8 text-center">
-          <h2 className="text-3xl font-bold text-[#F97316] mb-6">
+        // Updated background colors for better visibility on white background
+        <div className="mt-20 bg-gray-100 rounded-2xl p-8 text-center">
+          <h2 className="text-3xl font-bold text-[#1E40AF] mb-6">
             Why Choose Our Services?
           </h2>
           <div className="grid md:grid-cols-3 gap-8 mt-10">
-            <div className="bg-[#1E293B] p-6 rounded-xl">
+            <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="text-5xl text-[#F97316] mb-4">🏆</div>
-              <h3 className="text-xl font-semibold text-white mb-2">Expert Care</h3>
-              <p className="text-gray-300">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Expert Care</h3>
+              <p className="text-gray-600">
                 Our certified professionals provide the highest quality care for your pets.
               </p>
             </div>
-            <div className="bg-[#1E293B] p-6 rounded-xl">
+            <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="text-5xl text-[#F97316] mb-4">❤️</div>
-              <h3 className="text-xl font-semibold text-white mb-2">Passionate Team</h3>
-              <p className="text-gray-300">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Passionate Team</h3>
+              <p className="text-gray-600">
                 We love pets as much as you do and treat them like family.
               </p>
             </div>
-            <div className="bg-[#1E293B] p-6 rounded-xl">
+            <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="text-5xl text-[#F97316] mb-4">🛡️</div>
-              <h3 className="text-xl font-semibold text-white mb-2">Safe Environment</h3>
-              <p className="text-gray-300">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Safe Environment</h3>
+              <p className="text-gray-600">
                 Your pets are in a secure, clean, and comfortable environment.
               </p>
             </div>

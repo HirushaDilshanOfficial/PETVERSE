@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import axios from "axios";
 
 const PetOwnerSignup = () => {
   const [formData, setFormData] = useState({
@@ -15,9 +16,11 @@ const PetOwnerSignup = () => {
     role: "petOwner",
   });
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { signup, loading, error, clearError } = useAuth();
+  const { clearError } = useAuth();
   const navigate = useNavigate();
 
   const validateField = (name, value) => {
@@ -139,11 +142,158 @@ const PetOwnerSignup = () => {
     }
 
     try {
-      await signup(formData.email, formData.password, formData);
-      navigate("/dashboard/pet-owner");
+      setLoading(true);
+      setError(null);
+
+      // Step 1: Create user account via Firebase Authentication
+      const { getAuth, createUserWithEmailAndPassword } = await import(
+        "firebase/auth"
+      );
+      const app = (await import("../../config/firebase")).default;
+      const auth = getAuth(app);
+
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      const firebaseUser = userCredential.user;
+      const firebaseUid = firebaseUser.uid;
+
+      // Step 2: Register user in our backend
+      const API_BASE_URL =
+        import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+
+      // Prepare user data for backend registration
+      const userData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        role: formData.role,
+        address: formData.address,
+        nicNumber: formData.nicNumber,
+        firebaseUid: firebaseUid,
+      };
+
+      const registerResponse = await axios.post(
+        `${API_BASE_URL}/auth/register`,
+        userData
+      );
+
+      console.log(
+        "✅ User account created successfully",
+        registerResponse.data
+      );
+
+      // Success - show notification and navigate to login page
+      showNotification(
+        "Account created successfully! Please login to continue.",
+        "success"
+      );
+
+      // Redirect to login page after 3 seconds
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
     } catch (err) {
       console.error("Signup failed:", err);
+      setError(err.message);
+      showNotification(`Signup failed: ${err.message}`, "error");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Function to show notification
+  const showNotification = (message, type = "success") => {
+    // Create notification container if it doesn't exist
+    let container = document.getElementById("notification-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "notification-container";
+      container.style.position = "fixed";
+      container.style.top = "20px";
+      container.style.right = "20px";
+      container.style.zIndex = "9999";
+      document.body.appendChild(container);
+    }
+
+    // Create notification element
+    const notification = document.createElement("div");
+    notification.style.backgroundColor =
+      type === "success" ? "#10B981" : "#EF4444";
+    notification.style.color = "white";
+    notification.style.padding = "16px 24px";
+    notification.style.borderRadius = "8px";
+    notification.style.marginBottom = "12px";
+    notification.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+    notification.style.display = "flex";
+    notification.style.alignItems = "center";
+    notification.style.minWidth = "300px";
+    notification.style.transform = "translateX(100%)";
+    notification.style.transition = "transform 0.3s ease-in-out";
+    notification.style.opacity = "0";
+
+    // Add icon based on type
+    const icon = document.createElement("span");
+    icon.style.marginRight = "12px";
+    icon.style.fontSize = "20px";
+    icon.innerHTML = type === "success" ? "✅" : "❌";
+    notification.appendChild(icon);
+
+    // Add message
+    const messageElement = document.createElement("span");
+    messageElement.textContent = message;
+    notification.appendChild(messageElement);
+
+    // Add close button
+    const closeBtn = document.createElement("button");
+    closeBtn.innerHTML = "×";
+    closeBtn.style.background = "none";
+    closeBtn.style.border = "none";
+    closeBtn.style.color = "white";
+    closeBtn.style.fontSize = "20px";
+    closeBtn.style.fontWeight = "bold";
+    closeBtn.style.marginLeft = "16px";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.padding = "0";
+    closeBtn.style.width = "24px";
+    closeBtn.style.height = "24px";
+    closeBtn.style.display = "flex";
+    closeBtn.style.alignItems = "center";
+    closeBtn.style.justifyContent = "center";
+    closeBtn.onclick = () => {
+      notification.style.transform = "translateX(100%)";
+      notification.style.opacity = "0";
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    };
+    notification.appendChild(closeBtn);
+
+    // Add to container
+    container.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+      notification.style.transform = "translateX(0)";
+      notification.style.opacity = "1";
+    }, 10);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.transform = "translateX(100%)";
+        notification.style.opacity = "0";
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+    }, 3000);
   };
 
   return (

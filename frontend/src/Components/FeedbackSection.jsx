@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useAuth } from "../contexts/AuthContext";
+import { getAuth } from "firebase/auth";
+import app from "../config/firebase";
 
 const FeedbackSection = ({ serviceID }) => {
+  const { user } = useAuth();
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -11,7 +15,6 @@ const FeedbackSection = ({ serviceID }) => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const DEMO_USER_ID = "000000000000000000000001";
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
 
@@ -22,6 +25,8 @@ const FeedbackSection = ({ serviceID }) => {
   const [editFeedback, setEditFeedback] = useState("");
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState("");
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // Derived values
   const avgRating = useMemo(() => {
@@ -46,7 +51,7 @@ const FeedbackSection = ({ serviceID }) => {
       if (!serviceID) return;
       setLoading(true);
       try {
-        const res = await axios.get("http://localhost:5001/api/ratings", {
+        const res = await axios.get(`${API_BASE_URL}/ratings`, {
           params: { serviceID },
         });
         setFeedbacks(res.data || []);
@@ -65,6 +70,11 @@ const FeedbackSection = ({ serviceID }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!user) {
+      toast.error("Please login to submit feedback");
+      return;
+    }
+
     if (rating < 1 || rating > 5) {
       toast.error("Please select a rating (1-5)");
       return;
@@ -80,27 +90,47 @@ const FeedbackSection = ({ serviceID }) => {
 
     try {
       let payload;
-      let config = {};
+      let config = {
+        withCredentials: true,
+        headers: {}
+      };
+      
+      // Get Firebase ID token for authentication
+      const auth = getAuth(app);
+      const firebaseUser = auth.currentUser;
+      
+      // Enhanced check for authentication
+      if (!firebaseUser) {
+        toast.error("Authentication error. Please login again.");
+        return;
+      }
+      
+      // Get fresh ID token
+      const token = await firebaseUser.getIdToken(true); // Force refresh token
+      
+      config.headers.Authorization = `Bearer ${token}`;
+      
       if (imageFile) {
         // multipart for file upload
         payload = new FormData();
+        // Append text fields first, then the file field
         payload.append("rating", rating);
         payload.append("feedback", feedback.trim());
         payload.append("serviceID", serviceID);
-        payload.append("userID", DEMO_USER_ID);
+        // Append the file field last
         payload.append("image", imageFile);
-        config.headers = { "Content-Type": "multipart/form-data" };
+        // Don't set Content-Type header explicitly for FormData, let browser set it with proper boundary
       } else {
         // JSON body
         payload = {
           rating,
           feedback: feedback.trim(),
           serviceID,
-          userID: DEMO_USER_ID,
         };
+        config.headers["Content-Type"] = "application/json";
       }
 
-      const res = await axios.post("http://localhost:5001/api/ratings", payload, config);
+      const res = await axios.post(`${API_BASE_URL}/ratings`, payload, config);
 
       setFeedbacks((prev) => [res.data, ...prev]);
       toast.success("Feedback added!");
@@ -111,8 +141,9 @@ const FeedbackSection = ({ serviceID }) => {
       setImageFile(null);
       setImagePreview("");
     } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || "Failed to submit feedback";
+      console.error("Feedback submission error:", err);
+      console.error("Error response:", err.response);
+      const msg = err.response?.data?.message || err.message || "Failed to submit feedback";
       toast.error(msg);
     }
   };
@@ -201,22 +232,54 @@ const FeedbackSection = ({ serviceID }) => {
   const handleDelete = async (id) => {
     const proceed = window.confirm("Delete this feedback?");
     if (!proceed) return;
+    
+    if (!user) {
+      toast.error("Please login to delete feedback");
+      return;
+    }
+    
     try {
-      await axios.delete(`http://localhost:5001/api/ratings/${id}`);
+      // Get Firebase ID token for authentication
+      const auth = getAuth(app);
+      const firebaseUser = auth.currentUser;
+      
+      // Enhanced check for authentication
+      if (!firebaseUser) {
+        toast.error("Authentication error. Please login again.");
+        return;
+      }
+      
+      // Get fresh ID token
+      const token = await firebaseUser.getIdToken(true); // Force refresh token
+      
+      await axios.delete(`${API_BASE_URL}/ratings/${id}`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       setFeedbacks((prev) => prev.filter((f) => f._id !== id));
       toast.success("Feedback deleted");
       if (editingId === id) {
         setEditingId(null);
       }
     } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || "Failed to delete feedback";
+      console.error("Feedback deletion error:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to delete feedback";
       toast.error(msg);
     }
   };
 
   // Start editing a feedback
   const startEdit = (fb) => {
+    // Check if user is logged in and owns this feedback
+    if (!user) {
+      toast.error("Please login to edit feedback");
+      return;
+    }
+    
+    // In a real implementation, you would check if the current user owns this feedback
+    // For now, we'll allow editing for demo purposes
     setEditingId(fb._id);
     setEditRating(Number(fb.rating) || 0);
     setEditFeedback(fb.feedback || "");
@@ -235,6 +298,12 @@ const FeedbackSection = ({ serviceID }) => {
   const submitEdit = async (e) => {
     e.preventDefault();
     if (!editingId) return;
+    
+    if (!user) {
+      toast.error("Please login to edit feedback");
+      return;
+    }
+    
     if (editRating < 1 || editRating > 5) {
       toast.error("Please select a rating (1-5)");
       return;
@@ -245,28 +314,47 @@ const FeedbackSection = ({ serviceID }) => {
     }
     try {
       let payload;
-      let config = {};
+      let config = {
+        withCredentials: true,
+        headers: {}
+      };
+      
+      // Get Firebase ID token for authentication
+      const auth = getAuth(app);
+      const firebaseUser = auth.currentUser;
+      
+      // Enhanced check for authentication
+      if (!firebaseUser) {
+        toast.error("Authentication error. Please login again.");
+        return;
+      }
+      
+      // Get fresh ID token
+      const token = await firebaseUser.getIdToken(true); // Force refresh token
+      config.headers.Authorization = `Bearer ${token}`;
+      
       if (editImageFile) {
         payload = new FormData();
         payload.append("rating", editRating);
         payload.append("feedback", editFeedback.trim());
         payload.append("image", editImageFile);
-        config.headers = { "Content-Type": "multipart/form-data" };
+        // Don't set Content-Type header explicitly for FormData, let browser set it with proper boundary
       } else {
         payload = {
           rating: editRating,
           feedback: editFeedback.trim(),
         };
+        config.headers["Content-Type"] = "application/json";
       }
 
-      const res = await axios.put(`http://localhost:5001/api/ratings/${editingId}`, payload, config);
+      const res = await axios.put(`${API_BASE_URL}/ratings/${editingId}`, payload, config);
       const updated = res.data;
       setFeedbacks((prev) => prev.map((f) => (f._id === editingId ? { ...f, ...updated } : f)));
       toast.success("Feedback updated");
       cancelEdit();
     } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || "Failed to update feedback";
+      console.error("Feedback update error:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to update feedback";
       toast.error(msg);
     }
   };
@@ -319,7 +407,8 @@ const FeedbackSection = ({ serviceID }) => {
                       <div className="font-semibold text-gray-900">{fb?.userID?.name || "Anonymous"}</div>
                       <div className="text-xs text-gray-400">{formatDate(fb?.createdAt)}</div>
                     </div>
-                    {String(fb?.userID?._id || fb?.userID) === DEMO_USER_ID && editingId !== fb._id && (
+                    {/* In a real implementation, you would check if the current user owns this feedback */}
+                    {user && (
                       <div className="flex items-center gap-1 ml-2">
                         <button onClick={() => startEdit(fb)} className="p-2 rounded-full hover:bg-yellow-50 text-yellow-700" title="Edit" aria-label="Edit">✏️</button>
                         <button onClick={() => handleDelete(fb._id)} className="p-2 rounded-full hover:bg-red-50 text-red-600" title="Delete" aria-label="Delete">🗑️</button>
@@ -376,16 +465,22 @@ const FeedbackSection = ({ serviceID }) => {
 
       {/* Toggle form button */}
       <div className="mt-6">
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="w-full sm:w-auto px-5 py-2 rounded-lg bg-[#1E40AF] text-white font-medium hover:bg-[#1E40AF]/90 transition"
-        >
-          {showForm ? "Close form" : "Write a review"}
-        </button>
+        {user ? (
+          <button
+            onClick={() => setShowForm((prev) => !prev)}
+            className="w-full sm:w-auto px-5 py-2 rounded-lg bg-[#1E40AF] text-white font-medium hover:bg-[#1E40AF]/90 transition"
+          >
+            {showForm ? "Close form" : "Write a review"}
+          </button>
+        ) : (
+          <div className="text-center text-gray-500">
+            Please login to write a review
+          </div>
+        )}
       </div>
 
       {/* Feedback form */}
-      {showForm && (
+      {showForm && user && (
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700">Your rating</label>

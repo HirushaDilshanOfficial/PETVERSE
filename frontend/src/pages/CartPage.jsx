@@ -6,8 +6,13 @@ const CartPage = () => {
   const { cart, subtotal, updateCartItem, removeCartItem } = useContext(CartContext);
   const navigate = useNavigate();
 
-  console.log("CartPage - Cart data:", cart); // Debug log
+  // Debug log to see cart data
+  console.log("CartPage - Cart data:", cart); 
   console.log("CartPage - Subtotal:", subtotal); 
+  // Log first item to see its structure
+  if (cart && cart.length > 0) {
+    console.log("CartPage - First item:", cart[0]);
+  }
 
   const handleProceedToCheckout = () => {
     if (!cart || cart.length === 0) {
@@ -50,6 +55,9 @@ const CartPage = () => {
                     src={item.image || item.pImage || "https://placehold.co/100x100?text=No+Image"}
                     alt={item.name || item.pName}
                     className="w-20 h-20 object-cover rounded-lg"
+                    onError={(e) => {
+                      e.target.src = "https://placehold.co/100x100?text=No+Image";
+                    }}
                   />
                   <div>
                     <h2 className="font-semibold text-lg text-[#1E40AF]">{item.name || item.pName}</h2>

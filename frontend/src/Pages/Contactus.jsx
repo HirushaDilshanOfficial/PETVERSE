@@ -6,26 +6,73 @@ import axios from "axios";
 const Contactus = () => {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Validation functions
+  const validateName = (name) => {
+    // Only allow letters and spaces
+    return /^[a-zA-Z\s]*$/.test(name);
+  };
+
+  const validateEmail = (email) => {
+    // Basic email validation
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Apply validation based on field type
+    if (name === "name" && !validateName(value)) {
+      return;
+    }
+    
     setForm((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
-      toast.error("Please fill the required fields");
+    
+    const newErrors = {};
+    
+    // Validate name
+    if (!form.name.trim()) {
+      newErrors.name = "Name is required";
+    } else if (!validateName(form.name)) {
+      newErrors.name = "Name can only contain letters and spaces";
+    }
+    
+    // Validate email
+    if (!form.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!validateEmail(form.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    
+    // Validate message
+    if (!form.message.trim()) {
+      newErrors.message = "Message is required";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the validation errors");
       return;
     }
 
     try {
       setSubmitting(true);
-      // TODO: connect to your backend/email service
-      await axios.post("http://localhost:5001/api/contact", form);
+      // Use environment variable for API URL
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+      await axios.post(`${API_URL}/contact`, form);
       toast.success("Message sent! We'll get back to you shortly.");
       setForm({ name: "", email: "", subject: "", message: "" });
+      setErrors({}); // Clear errors on successful submission
     } catch (err) {
       console.error(err);
       const msg = err.response?.data?.message || err.message || "Failed to send message";
@@ -77,9 +124,12 @@ const Contactus = () => {
                 value={form.name}
                 onChange={handleChange}
                 placeholder="Your name"
-                className="mt-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                className={`mt-1 px-3 py-2 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300 ${
+                  errors.name ? "border-red-500" : "border-gray-300"
+                }`}
                 required
               />
+              {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
             </div>
 
             <div className="flex flex-col">
@@ -93,9 +143,12 @@ const Contactus = () => {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
-                className="mt-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                className={`mt-1 px-3 py-2 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300 ${
+                  errors.email ? "border-red-500" : "border-gray-300"
+                }`}
                 required
               />
+              {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
             </div>
 
             <div className="flex flex-col md:col-span-2">
@@ -122,9 +175,12 @@ const Contactus = () => {
                 onChange={handleChange}
                 rows={5}
                 placeholder="Write your message here..."
-                className="mt-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                className={`mt-1 px-3 py-2 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-300 ${
+                  errors.message ? "border-red-500" : "border-gray-300"
+                }`}
                 required
               />
+              {errors.message && <p className="mt-1 text-sm text-red-500">{errors.message}</p>}
             </div>
 
             <div className="md:col-span-2">

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const AdFrontend = () => {
+const AdFrontend = ({ providerId }) => {
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
@@ -16,6 +16,10 @@ const AdFrontend = () => {
   { label: "2 Months (60 Days) - Rs 9000", value: 60 },
 ];
 
+  // Validation function for title (only letters and spaces)
+  const validateTitle = (title) => {
+    return /^[a-zA-Z\s]*$/.test(title);
+  };
 
   // Fetch ads on load
   useEffect(() => {
@@ -34,8 +38,14 @@ const AdFrontend = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!title || !duration) {
+    if (!title || !duration || !providerId) {
       toast.error("Please fill all required fields");
+      return;
+    }
+
+    // Validate title before submitting
+    if (!validateTitle(title)) {
+      toast.error("Title can only contain letters and spaces");
       return;
     }
 
@@ -44,6 +54,7 @@ const AdFrontend = () => {
       formData.append("title", title);
       formData.append("duration", duration);
       formData.append("description", description);
+      formData.append("provider_ID", providerId); // Add provider ID
 
       if (imageFile) {
         formData.append("image", imageFile); // matches multer
@@ -74,6 +85,13 @@ const AdFrontend = () => {
     setImagePreview(file ? URL.createObjectURL(file) : "");
   };
 
+  // Handle title change with validation
+  const handleTitleChange = (value) => {
+    // Only allow letters and spaces
+    if (!validateTitle(value)) return;
+    setTitle(value);
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Form */}
@@ -89,7 +107,7 @@ const AdFrontend = () => {
           <input
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => handleTitleChange(e.target.value)}
             required
             className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
           />
@@ -178,4 +196,3 @@ const AdFrontend = () => {
 };
 
 export default AdFrontend;
-

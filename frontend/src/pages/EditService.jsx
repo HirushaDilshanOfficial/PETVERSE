@@ -3,12 +3,34 @@ import { useParams, Link, useNavigate } from "react-router";
 import api from "../lib/axios";
 import toast from "react-hot-toast";
 
+// Validation functions
+const validateTitle = (title) => {
+  // Only allow letters and spaces
+  return /^[a-zA-Z\s]*$/.test(title);
+};
+
+const validatePrice = (price) => {
+  // Only allow numbers
+  return /^\d*\.?\d*$/.test(price);
+};
+
+const validateDuration = (duration) => {
+  // Allow letters and numbers only (no special characters)
+  return /^[a-zA-Z0-9\s]*$/.test(duration);
+};
+
+const validateServiceIncluded = (service) => {
+  // Allow letters and digits only
+  return /^[a-zA-Z0-9\s]*$/.test(service);
+};
+
 const EditService = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -58,6 +80,57 @@ const EditService = () => {
     };
   }, [id]);
 
+  // Handle title change with validation
+  const handleTitleChange = (value) => {
+    // Only allow letters and spaces
+    if (!validateTitle(value)) return;
+    setTitle(value);
+    
+    // Clear error when user starts typing
+    if (errors.title) {
+      setErrors(prev => ({ ...prev, title: '' }));
+    }
+  };
+
+  // Handle price change with validation
+  const handlePriceChange = (idx, value) => {
+    // Only allow numbers and decimal point
+    if (!validatePrice(value)) return;
+    updatePackageField(idx, "price", value);
+    
+    // Clear error when user starts typing
+    const errorKey = `price-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Handle duration change with validation
+  const handleDurationChange = (idx, value) => {
+    // Allow letters and numbers only
+    if (!validateDuration(value)) return;
+    updatePackageField(idx, "duration", value);
+    
+    // Clear error when user starts typing
+    const errorKey = `duration-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Handle service included input change with validation
+  const handleIncludeInputChange = (idx, value) => {
+    // Allow letters and digits only
+    if (!validateServiceIncluded(value)) return;
+    updatePackageField(idx, "includeInput", value);
+    
+    // Clear error when user starts typing
+    const errorKey = `includeInput-${idx}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
   const updatePackageField = (idx, field, value) => {
     setPackages((prev) => {
       const next = [...prev];
@@ -71,6 +144,14 @@ const EditService = () => {
       const next = [...prev];
       const input = (next[idx].includeInput || "").trim();
       if (!input) return prev;
+      
+      // Validate service included before adding
+      if (!validateServiceIncluded(input)) {
+        const errorKey = `includeInput-${idx}`;
+        setErrors(prev => ({ ...prev, [errorKey]: 'Service included can only contain letters and digits' }));
+        return prev;
+      }
+      
       next[idx] = {
         ...next[idx],
         included: [...next[idx].included, input],
@@ -91,6 +172,40 @@ const EditService = () => {
 
   const onSave = async (e) => {
     e.preventDefault();
+    
+    const newErrors = {};
+    
+    // Validate title
+    if (!title.trim()) {
+      newErrors.title = "Title is required";
+    } else if (!validateTitle(title)) {
+      newErrors.title = "Title can only contain letters and spaces";
+    }
+    
+    // Validate packages
+    packages.forEach((pkg, idx) => {
+      // Validate price if provided
+      if (pkg.price && !validatePrice(pkg.price)) {
+        newErrors[`price-${idx}`] = "Price can only contain numbers";
+      }
+      
+      // Validate duration if provided
+      if (pkg.duration && !validateDuration(pkg.duration)) {
+        newErrors[`duration-${idx}`] = "Duration can only contain letters and numbers";
+      }
+      
+      // Validate includeInput if provided
+      if (pkg.includeInput && !validateServiceIncluded(pkg.includeInput)) {
+        newErrors[`includeInput-${idx}`] = "Service included can only contain letters and digits";
+      }
+    });
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the validation errors");
+      return;
+    }
+    
     if (!title.trim()) return toast.error("Title required");
 
     const payloadPackages = packages
@@ -114,7 +229,7 @@ const EditService = () => {
         packages: payloadPackages,
       });
       toast.success("Service updated");
-      navigate("/my-services");
+      navigate("/dashboard/service-provider/my-services");
     } catch (e) {
       console.error(e);
       toast.error("Failed to update service");
@@ -134,7 +249,7 @@ const EditService = () => {
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Edit Service</h1>
-        <Link to="/my-services" className="btn">
+        <Link to="/dashboard/service-provider/my-services" className="btn">
           Back
         </Link>
       </div>
@@ -143,10 +258,11 @@ const EditService = () => {
         <div className="form-control">
           <label className="label">Title</label>
           <input
-            className="input input-bordered"
+            className={`input input-bordered ${errors.title ? 'input-error' : ''}`}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => handleTitleChange(e.target.value)}
           />
+          {errors.title && <span className="text-red-500 text-sm mt-1">{errors.title}</span>}
         </div>
 
         <div className="form-control">
@@ -179,15 +295,15 @@ const EditService = () => {
                   <span className="label-text">Price</span>
                 </label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
                   placeholder="0.00"
-                  className="input input-bordered"
+                  className={`input input-bordered ${errors[`price-${idx}`] ? 'input-error' : ''}`}
                   value={pkg.price}
                   onChange={(e) =>
-                    updatePackageField(idx, "price", e.target.value)
+                    handlePriceChange(idx, e.target.value)
                   }
                 />
+                {errors[`price-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`price-${idx}`]}</span>}
               </div>
 
               <div className="form-control mb-3">
@@ -197,12 +313,13 @@ const EditService = () => {
                 <input
                   type="text"
                   placeholder="e.g., 30 minutes, 1 day"
-                  className="input input-bordered"
+                  className={`input input-bordered ${errors[`duration-${idx}`] ? 'input-error' : ''}`}
                   value={pkg.duration}
                   onChange={(e) =>
-                    updatePackageField(idx, "duration", e.target.value)
+                    handleDurationChange(idx, e.target.value)
                   }
                 />
+                {errors[`duration-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`duration-${idx}`]}</span>}
               </div>
 
               <div className="form-control">
@@ -213,10 +330,10 @@ const EditService = () => {
                   <input
                     type="text"
                     placeholder="Add a service..."
-                    className="input input-bordered flex-1"
+                    className={`input input-bordered flex-1 ${errors[`includeInput-${idx}`] ? 'input-error' : ''}`}
                     value={pkg.includeInput}
                     onChange={(e) =>
-                      updatePackageField(idx, "includeInput", e.target.value)
+                      handleIncludeInputChange(idx, e.target.value)
                     }
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -226,6 +343,7 @@ const EditService = () => {
                     }}
                   />
                 </div>
+                {errors[`includeInput-${idx}`] && <span className="text-red-500 text-sm mt-1">{errors[`includeInput-${idx}`]}</span>}
 
                 {pkg.included.length > 0 && (
                   <ul className="mt-3 space-y-2">

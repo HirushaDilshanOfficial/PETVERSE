@@ -133,7 +133,7 @@ function KYCReviewPage() {
   // Approve service provider
   const approveRequest = async (userId) => {
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${userId}/verify`, {
         method: 'PUT',
@@ -177,7 +177,7 @@ function KYCReviewPage() {
     }
 
     try {
-      const token = await currentUser.getIdToken();
+      const token = await getIdToken();
       
       const response = await fetch(`${API_BASE_URL}/auth/users/${selectedRequest._id}/verify`, {
         method: 'PUT',
@@ -214,9 +214,32 @@ function KYCReviewPage() {
   };
 
   // View service provider details
-  const viewRequest = (request) => {
-    setSelectedRequest(request);
-    setShowViewModal(true);
+  const viewRequest = async (request) => {
+    try {
+      // Fetch the most up-to-date user information
+      const token = await getIdToken();
+      const response = await fetch(`${API_BASE_URL}/auth/users/${request._id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setSelectedRequest(data.user);
+      setShowViewModal(true);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      showNotification('Failed to fetch user details. Please try again.', 'error');
+      // Fallback to using the existing request data
+      setSelectedRequest(request);
+      setShowViewModal(true);
+    }
   };
 
   // Get verification status text and styling

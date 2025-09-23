@@ -5,6 +5,7 @@ import Navbar from '../components/admin/Navbar.jsx';
 
 // Main Admin Layout Component for beginners
 function AdminLayout() {
+  console.log("AdminLayout - Rendering");
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar - Fixed on the left */}

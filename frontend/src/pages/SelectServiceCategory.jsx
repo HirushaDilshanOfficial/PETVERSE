@@ -29,7 +29,7 @@ const ServiceCards = () => {
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Nail Trimming</span>
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Ear Cleaning</span>
             </div>
-            <Link to="/create?category=grooming" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
+            <Link to="/services/create?category=grooming" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
               Add Service
             </Link>
           </div>
@@ -57,7 +57,7 @@ const ServiceCards = () => {
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Play Areas</span>
               <span className="px-3 py-1 bg-gray-100 rounded-lg">24/7 Supervision</span>
             </div>
-            <Link to="/create?category=boarding" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
+            <Link to="/services/create?category=boarding" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
               Add Service
             </Link>
           </div>
@@ -85,7 +85,7 @@ const ServiceCards = () => {
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Agility Training</span>
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Puppy Classes</span>
             </div>
-            <Link to="/create?category=training" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
+            <Link to="/services/create?category=training" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
               Add Service
             </Link>
           </div>
@@ -113,7 +113,7 @@ const ServiceCards = () => {
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Emergency Care</span>
               <span className="px-3 py-1 bg-gray-100 rounded-lg">Surgery</span>
             </div>
-            <Link to="/create?category=veterinary" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
+            <Link to="/services/create?category=veterinary" className="block w-full py-3 text-lg font-semibold text-center rounded-xl bg-blue-600 text-white hover:bg-orange-500 transition">
               Add Service
             </Link>
           </div>

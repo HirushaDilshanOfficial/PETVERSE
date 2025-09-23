@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 // Simple Navbar Component with real authentication
 function Navbar() {
-  const { currentUser, userProfile, signout } = useAuth();
+  const { user, signout } = useAuth();
   const navigate = useNavigate();
   
   // State for dropdown menu
@@ -34,7 +34,8 @@ function Navbar() {
     if (window.confirm('Are you sure you want to logout?')) {
       try {
         await signout();
-        navigate('/');
+        // Navigate to home page after logout with fromLogout state
+        navigate('/', { state: { fromLogout: true } });
       } catch (error) {
         console.error('Failed to logout:', error);
         alert('Failed to logout. Please try again.');
@@ -50,18 +51,18 @@ function Navbar() {
 
   // Get user display name
   const getUserDisplayName = () => {
-    if (userProfile?.fullName) {
-      return userProfile.fullName;
+    if (user?.fullName) {
+      return user.fullName;
     }
-    if (currentUser?.email) {
-      return currentUser.email.split('@')[0];
+    if (user?.email) {
+      return user.email.split('@')[0];
     }
     return 'Admin User';
   };
 
   // Get user email
   const getUserEmail = () => {
-    return userProfile?.email || currentUser?.email || 'admin@petverse.com';
+    return user?.email || 'admin@petverse.com';
   };
 
   return (

@@ -56,7 +56,7 @@ export const uploadServiceProviderDocs = upload.fields([
 export const uploadProfilePicture = upload.single("profilePicture");
 
 // Middleware for general single file upload
-export const uploadSingleFile = upload.single("file");
+export const uploadSingleFile = upload.single("pImage");
 
 // Middleware for multiple files upload
 export const uploadMultipleFiles = upload.array("files", 10);

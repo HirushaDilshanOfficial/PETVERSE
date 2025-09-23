@@ -1,8 +1,10 @@
 import React from "react";
 import AdFrontend from "../Components/AdFrontend";
+import { useAuth } from "../contexts/AuthContext";
 
 const TestProvider = () => {
-  const providerId = "12345"; // Replace with real provider ID
+  const { user } = useAuth();
+  const providerId = user?._id || "12345"; // Use real provider ID from auth context or fallback
 
   return (
     <div className="min-h-screen bg-gray-50">

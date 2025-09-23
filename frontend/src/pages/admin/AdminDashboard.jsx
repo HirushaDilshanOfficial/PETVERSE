@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getIdToken } from '../../utils/authUtils';
+import { useNavigate } from 'react-router-dom';
 
 // Navbar Component
 function Navbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const { signout } = useAuth();
+  const navigate = useNavigate();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -14,12 +17,16 @@ function Navbar() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      // This is a placeholder implementation
-      // In a real application, this would call the actual logout function
-      // For now, we'll redirect to the home page
-      window.location.href = '/';
+      try {
+        await signout();
+        // Navigate to home page after logout
+        navigate('/');
+      } catch (error) {
+        console.error('Logout error:', error);
+        alert('Failed to logout. Please try again.');
+      }
     }
   };
 
@@ -151,6 +158,9 @@ function AdminDashboard() {
     totalRevenue: 0
   });
   
+  console.log("AdminDashboard - currentUser:", currentUser);
+  console.log("AdminDashboard - authLoading:", authLoading);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -290,6 +300,7 @@ function AdminDashboard() {
 
   // Show a message if user is not authenticated or not an admin
   if (!currentUser || currentUser.role !== 'admin') {
+    console.log("AdminDashboard - Access denied:", { currentUser, role: currentUser?.role });
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center py-12">
@@ -300,6 +311,7 @@ function AdminDashboard() {
           </div>
           <p className="text-orange-500 text-lg font-medium">Access denied</p>
           <p className="text-gray-600 mt-2">You must be an administrator to access this page.</p>
+          {currentUser && <p className="text-gray-500 mt-2">Current role: {currentUser.role}</p>}
         </div>
       </div>
     );

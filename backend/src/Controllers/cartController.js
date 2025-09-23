@@ -58,6 +58,7 @@ export const addToCart = async (req, res) => {
       productId: product.productID,
       name: product.pName,
       price: product.pPrice,
+      image: product.pImage, // Add the image field
       quantity,
     });
   }

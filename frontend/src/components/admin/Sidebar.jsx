@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 function Sidebar() {
+  console.log("Sidebar - Rendering");
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);

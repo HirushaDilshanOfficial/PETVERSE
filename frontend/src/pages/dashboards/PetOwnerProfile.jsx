@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 // Custom SVG Icons
 const User = ({ className = "h-5 w-5" }) => (
@@ -108,7 +111,7 @@ const Menu = ({ className = "h-5 w-5" }) => (
 );
 
 // Sidebar Component
-const Sidebar = ({ currentSection, onSectionChange }) => {
+const Sidebar = ({ currentSection, onSectionChange, user, onLogout }) => {
   const menuItems = [
     { id: 'profile', label: 'Personal Information', icon: User },
     { id: 'pets', label: 'My Pets', icon: Heart },
@@ -158,23 +161,34 @@ const Sidebar = ({ currentSection, onSectionChange }) => {
         </ul>
       </nav>
 
-      {/* User Info at Bottom */}
+      {/* User Info and Logout at Bottom */}
       <div className="p-4 border-t border-blue-800">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 mb-4">
           <div className="bg-blue-800 p-2 rounded-full">
             <User className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">John Smith</p>
-            <p className="text-xs text-blue-200 truncate">Pet Owner</p>
+            <p className="text-sm font-medium text-white truncate">{user?.fullName || 'Pet Owner'}</p>
+            <p className="text-xs text-blue-200 truncate">{user?.email || ''}</p>
           </div>
         </div>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>Logout</span>
+        </button>
       </div>
     </div>
   );
 };
 
 const PetOwnerProfile = () => {
+  const { user, signout } = useAuth();
+  const navigate = useNavigate();
   // Current section state for sidebar navigation
   const [currentSection, setCurrentSection] = useState('profile');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -182,13 +196,10 @@ const PetOwnerProfile = () => {
 
   // Profile state
   const [profile, setProfile] = useState({
-    fullName: 'John Smith',
-    email: 'john.smith@email.com',
-    phone: '+1 (555) 123-4567',
-    street: '123 Main Street',
-    city: 'New York',
-    state: 'NY',
-    postalCode: '10001'
+    fullName: '',
+    email: '',
+    phone: '',
+    address: ''
   });
 
   const [originalProfile, setOriginalProfile] = useState({...profile});
@@ -196,6 +207,20 @@ const PetOwnerProfile = () => {
   const [profileErrors, setProfileErrors] = useState({});
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+
+  // Set profile data from user context when component mounts
+  useEffect(() => {
+    if (user) {
+      const userProfile = {
+        fullName: user.fullName || '',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        address: user.address || ''
+      };
+      setProfile(userProfile);
+      setOriginalProfile(userProfile);
+    }
+  }, [user]);
 
   // Pets state
   const [pets, setPets] = useState([
@@ -244,41 +269,28 @@ const PetOwnerProfile = () => {
   };
 
   const validatePhone = (phone) => {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10;
+    // Only allow numbers, max 10 digits
+    const cleanPhone = phone.replace(/\D/g, '');
+    return /^\d*$/.test(cleanPhone) && cleanPhone.length <= 10;
   };
 
-  const validateProfile = () => {
-    const errors = {};
-    
-    if (!profile.fullName.trim()) errors.fullName = 'Full name is required';
-    if (!profile.email.trim()) errors.email = 'Email is required';
-    else if (!validateEmail(profile.email)) errors.email = 'Please enter a valid email address';
-    if (!profile.phone.trim()) errors.phone = 'Phone number is required';
-    else if (!validatePhone(profile.phone)) errors.phone = 'Please enter a valid phone number';
-    if (!profile.street.trim()) errors.street = 'Street address is required';
-    if (!profile.city.trim()) errors.city = 'City is required';
-    if (!profile.state.trim()) errors.state = 'State is required';
-    if (!profile.postalCode.trim()) errors.postalCode = 'Postal code is required';
-
-    return errors;
-  };
-
-  const validatePet = (petData) => {
-    const errors = {};
-    
-    if (!petData.name.trim()) errors.name = 'Pet name is required';
-    if (!petData.type) errors.type = 'Pet type is required';
-    if (!petData.breed.trim()) errors.breed = 'Breed is required';
-    if (!petData.age) errors.age = 'Age is required';
-    else if (petData.age < 0 || petData.age > 50) errors.age = 'Please enter a valid age';
-
-    return errors;
+  // Add new validation function for full name
+  const validateFullName = (name) => {
+    // Only allow letters and spaces
+    return /^[a-zA-Z\s]*$/.test(name);
   };
 
   // Profile handlers
   const handleProfileChange = (field, value) => {
+    // Add validation for specific fields
+    if (field === 'fullName' && !validateFullName(value)) return;
+    if (field === 'phone') {
+      // Only allow numbers and limit to 10 digits
+      const cleanPhone = value.replace(/\D/g, '');
+      if (cleanPhone.length > 10) return;
+      value = cleanPhone;
+    }
+    
     setProfile(prev => ({ ...prev, [field]: value }));
     if (profileErrors[field]) {
       setProfileErrors(prev => ({ ...prev, [field]: '' }));
@@ -522,6 +534,46 @@ const PetOwnerProfile = () => {
     );
   };
 
+  const validateProfile = () => {
+    const errors = {};
+    
+    if (!profile.fullName.trim()) errors.fullName = 'Full name is required';
+    else if (!validateFullName(profile.fullName)) errors.fullName = 'Full name can only contain letters';
+    
+    if (!profile.email.trim()) errors.email = 'Email is required';
+    else if (!validateEmail(profile.email)) errors.email = 'Please enter a valid email address';
+    
+    if (!profile.phone.trim()) errors.phone = 'Phone number is required';
+    else if (!validatePhone(profile.phone)) errors.phone = 'Phone number can only contain numbers and maximum 10 digits';
+    
+    if (!profile.address.trim()) errors.address = 'Address is required';
+
+    return errors;
+  };
+
+  const validatePet = (pet) => {
+    const errors = {};
+    
+    if (!pet.name.trim()) errors.name = 'Pet name is required';
+    if (!pet.type) errors.type = 'Pet type is required';
+    if (!pet.breed.trim()) errors.breed = 'Breed is required';
+    if (!pet.age.trim()) errors.age = 'Age is required';
+    else if (isNaN(pet.age)) errors.age = 'Age must be a number';
+
+    return errors;
+  };
+
+  // Add logout handler
+  const handleLogout = async () => {
+    try {
+      await signout();
+      navigate('/'); // Redirect to home page
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Failed to logout');
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Mobile Sidebar Overlay */}
@@ -536,7 +588,9 @@ const PetOwnerProfile = () => {
       <div className="hidden lg:block">
         <Sidebar 
           currentSection={currentSection} 
-          onSectionChange={setCurrentSection} 
+          onSectionChange={setCurrentSection}
+          user={user}
+          onLogout={handleLogout}
         />
       </div>
 
@@ -549,7 +603,9 @@ const PetOwnerProfile = () => {
           onSectionChange={(section) => {
             setCurrentSection(section);
             setIsMobileMenuOpen(false);
-          }} 
+          }}
+          user={user}
+          onLogout={handleLogout}
         />
       </div>
 
@@ -600,14 +656,14 @@ const PetOwnerProfile = () => {
                 </svg>
               </button>
 
-              {/* User Avatar */}
+              {/* User Avatar with real data */}
               <div className="flex items-center space-x-2">
                 <div className="bg-orange-500 text-white p-2 rounded-full">
                   <User className="h-5 w-5" />
                 </div>
                 <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-gray-900">John Smith</p>
-                  <p className="text-xs text-gray-500">Pet Owner</p>
+                  <p className="text-sm font-medium text-gray-900">{user?.fullName || 'Pet Owner'}</p>
+                  <p className="text-xs text-gray-500">{user?.email || ''}</p>
                 </div>
               </div>
             </div>
@@ -623,16 +679,26 @@ const PetOwnerProfile = () => {
                 <div className="bg-white rounded-lg shadow-md p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-gray-800">Personal Information</h2>
-                    {!isProfileEditing && (
+                    <div className="flex space-x-2">
+                      {!isProfileEditing && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsProfileEditing(true)}
+                          icon={Edit2}
+                        >
+                          Edit Profile
+                        </Button>
+                      )}
+                      {/* Add Logout Button */}
                       <Button
-                        variant="secondary"
+                        variant="danger"
                         size="sm"
-                        onClick={() => setIsProfileEditing(true)}
-                        icon={Edit2}
+                        onClick={handleLogout}
                       >
-                        Edit Profile
+                        Logout
                       </Button>
-                    )}
+                    </div>
                   </div>
 
                   {profileMessage.text && (
@@ -679,51 +745,20 @@ const PetOwnerProfile = () => {
                       onChange={(value) => handleProfileChange('phone', value)}
                       error={profileErrors.phone}
                       icon={Phone}
-                      placeholder="+1 (555) 123-4567"
+                      placeholder="Enter up to 10 digits"
                       disabled={!isProfileEditing}
                       required
                     />
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <InputField
-                        label="Street Address"
-                        value={profile.street}
-                        onChange={(value) => handleProfileChange('street', value)}
-                        error={profileErrors.street}
-                        icon={MapPin}
-                        disabled={!isProfileEditing}
-                        required
-                      />
-
-                      <InputField
-                        label="City"
-                        value={profile.city}
-                        onChange={(value) => handleProfileChange('city', value)}
-                        error={profileErrors.city}
-                        disabled={!isProfileEditing}
-                        required
-                      />
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <InputField
-                        label="State"
-                        value={profile.state}
-                        onChange={(value) => handleProfileChange('state', value)}
-                        error={profileErrors.state}
-                        disabled={!isProfileEditing}
-                        required
-                      />
-
-                      <InputField
-                        label="Postal Code"
-                        value={profile.postalCode}
-                        onChange={(value) => handleProfileChange('postalCode', value)}
-                        error={profileErrors.postalCode}
-                        disabled={!isProfileEditing}
-                        required
-                      />
-                    </div>
+                    <InputField
+                      label="Address"
+                      value={profile.address}
+                      onChange={(value) => handleProfileChange('address', value)}
+                      error={profileErrors.address}
+                      icon={MapPin}
+                      disabled={!isProfileEditing}
+                      required
+                    />
                   </div>
 
                   {isProfileEditing && (

@@ -18,13 +18,16 @@ const ProtectedRoute = ({ children, requiredRole, redirectTo = "/login" }) => {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!user) {
+  // Check if user is coming from a logout action
+  const fromLogout = location.state?.fromLogout;
+
+  // Redirect to login if not authenticated and not coming from logout
+  if (!user && !fromLogout) {
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
   // If a specific role is required, check user's role
-  if (requiredRole) {
+  if (requiredRole && user) {
     // Note: role in database is "petOwner" (with capital O)
     const userRole = user.role;
     const normalizedRequiredRole =
@@ -65,7 +68,9 @@ export const AdminRoute = ({ children }) => (
 );
 
 export const ServiceProviderRoute = ({ children }) => (
-  <ProtectedRoute requiredRole="serviceProvider">{children}</ProtectedRoute>
+  <ProtectedRoute requiredRole="serviceProvider" redirectTo="/">
+    {children}
+  </ProtectedRoute>
 );
 
 export const PetOwnerRoute = ({ children }) => (

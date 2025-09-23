@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -8,7 +8,7 @@ const AdminLogin = () => {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const { signin, signout, loading, error, clearError } = useAuth();
+  const { signin, signout, loading, error, clearError, user } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -21,21 +21,48 @@ const AdminLogin = () => {
     e.preventDefault();
 
     try {
-      const user = await signin(formData.email, formData.password);
+      const response = await signin(formData.email, formData.password);
+      console.log("Signin response:", response);
+      console.log("User from context:", user);
+
       // Check if user is admin after login
-      if (user && user.role === "admin") {
-        navigate("/admin/dashboard");
+      // The response contains {user: userData} structure
+      if (response && response.user && response.user.role === "admin") {
+        console.log("Navigating to admin dashboard");
+        // Use a small delay to ensure state is updated
+        setTimeout(() => {
+          navigate("/admin/dashboard");
+        }, 100);
       } else {
         // If not admin, show error and logout
         alert("Access denied. Admin credentials required.");
         await signout();
-        // Redirect to home page after logout
-        navigate("/");
+        // Redirect to home page after logout with fromLogout state
+        navigate("/", { state: { fromLogout: true } });
       }
     } catch (err) {
       console.error("Admin login failed:", err);
     }
   };
+
+  // Check user role on component mount and when user changes
+  useEffect(() => {
+    if (user && user.role === "admin") {
+      // If user is already logged in as admin, redirect to dashboard
+      navigate("/admin/dashboard");
+    } else if (user && user.role !== "admin") {
+      // If user is logged in but not as admin, redirect to home page for pet owners
+      // or to their dashboard for service providers
+      const roleRedirects = {
+        admin: "/admin/dashboard",
+        serviceProvider: "/dashboard/service-provider",
+        petOwner: "/", // Redirect pet owners to home page
+      };
+
+      const redirectPath = roleRedirects[user.role] || "/dashboard";
+      navigate(redirectPath);
+    }
+  }, [user, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">

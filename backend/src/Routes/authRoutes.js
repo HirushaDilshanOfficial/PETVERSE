@@ -15,8 +15,8 @@ import {
 import {
   authenticateUser,
   requireAdmin,
-  requireAuth,
   requireResourceOwnership,
+  allowUnverifiedServiceProviderDocuments,
 } from "../Middleware/auth.js";
 import {
   uploadServiceProviderDocs,
@@ -56,7 +56,7 @@ router.post(
 // Upload Service Provider documents
 router.post(
   "/service-provider/:userId/documents",
-  authenticateUser,
+  allowUnverifiedServiceProviderDocuments,
   requireResourceOwnership,
   uploadServiceProviderDocs,
   handleMulterError,

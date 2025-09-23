@@ -24,21 +24,24 @@ const orderSchema = new mongoose.Schema({
 
   items: [
     {
-      productID: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+      productID: { type: String, ref: "Product" },
       name: String,
       pQuantity: Number,
       pPrice: Number,
-    }
+    },
   ],
 
   totalAmount: Number,
   pointsRedeemed: { type: Number, default: 0 },
-  paymentMethod: { type: String, enum: ["online", "bank_transfer", "cod"], required: true },
+  paymentMethod: {
+    type: String,
+    enum: ["online", "bank_transfer", "cod"],
+    required: true,
+  },
   paymentStatus: { type: String, default: "pending" },
   status: { type: String, default: "processing" },
-  date: { type: Date, default: Date.now }
+  date: { type: Date, default: Date.now },
 });
-
 
 const Order = mongoose.model("Order", orderSchema);
 export default Order;
