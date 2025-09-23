@@ -1,19 +1,24 @@
-import logo from './logo.svg';
-import './App.css';
-
+import React from "react";
+import { Routes, Route } from "react-router-dom";
+import Home from "./pages/home";
+import Packages from "./pages/packages";
+import GrPackages from "./pages/grpackages";
+import TrPackages from "./pages/trpackages";
+import VetPackages from "./pages/vetpackages";
+import NewPuppy from "./pages/NewPuppy";
+import NewKitten from "./pages/NewKitten";
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="p-8 rounded-2xl shadow-lg bg-white space-y-4">
-        <h1 className="text-3xl font-bold text-brand">Hello React + Tailwind!</h1>
-        <p className="text-gray-600">This project uses Tailwind via CDN.</p>
-        <button className="px-4 py-2 rounded-lg bg-brand text-white hover:bg-blue-600">
-          Click Me
-        </button>
-      </div>
-    </div>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/boarding" element={<Packages />} />
+      <Route path="/grooming" element={<GrPackages />} />
+      <Route path="/training" element={<TrPackages />} />
+      <Route path="/veterinary" element={<VetPackages />} />
+      <Route path="/new-puppy" element={<NewPuppy />} />
+      <Route path="/new-kitten" element={<NewKitten />} />
+    </Routes>
   );
 }
 
 export default App;
-
